@@ -13,12 +13,21 @@ config = dict(
 facility_ids, facility_coordinates, facility_capacities = FacilityReader(config).read("/home/sebastian/static_locchoice/consistent/ch_1/facilities.xml.gz")
 facility_id_to_index = { facility_id : index for index, facility_id in enumerate(facility_ids) }
 
-person_ids, person_indices, activity_types, activity_modes, activity_facilities, activity_indices = PopulationReader(config).read(
+activity_types, activity_modes, activity_facilities, activity_times = PopulationReader(config).read(
     "/home/sebastian/static_locchoice/consistent/ch_1/population.xml.gz",
     facility_id_to_index
 )
 
 relevant_activity_types = ["shop", "leisure", "escort_kids", "escort_other", "remote_work"]
+
+facility_capacities = facility_capacities.astype(np.float) * 0.01
+facility_capacities = np.ceil(facility_capacities)
+
+# Random initialization
+#for t in relevant_activity_types:
+#    type_indices = np.where(facility_capacities[constant.ACTIVITY_TYPES_TO_INDEX[t],:] > 0)[0]
+#    type_mask = activity_types == constant.ACTIVITY_TYPES_TO_INDEX[t]
+#    activity_facilities[type_mask] = np.random.choice(type_indices, np.sum(type_mask))
 
 proposal_distribution = proposals.RandomProposalDistribution(relevant_activity_types, activity_types, facility_capacities)
 references = reference.get_by_purpose()
@@ -26,20 +35,33 @@ references = reference.get_by_purpose()
 distance_likelihood = likelihoods.DistanceLikelihood(relevant_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, references)
 distance_likelihood.initialize()
 
+min_time, max_time, bins = 0.0, 3600 * 24, 24 # * 6
+capacity_likelihood = likelihoods.CapacityLikelihood(config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_times, min_time, max_time, bins)
+capacity_likelihood.initialize()
+
+joint_likelihood = likelihoods.JointLikelihood()
+joint_likelihood.add_likelihood(distance_likelihood, 0.0)
+joint_likelihood.add_likelihood(capacity_likelihood, 1.0)
+
 acceptance_count = 0
 acceptance = []
 likelihood = []
+valid = []
 
 distances = { t : [] for t in relevant_activity_types }
 
-sampler = sampler.Sampler(distance_likelihood, proposal_distribution)
-for i in tqdm(range(int(2e5))):
+interval = 10000
+
+sampler = sampler.Sampler(joint_likelihood, proposal_distribution)
+for i in tqdm(range(int(1e6))):
     accepted = sampler.run_sample()
     if accepted: acceptance_count += 1
 
-    if i % 1000 == 0:
-        acceptance.append(acceptance_count / (i + 1))
-        likelihood.append(distance_likelihood.get_likelihood())
+    if i % interval == 0:
+        acceptance.append(acceptance_count / interval)
+        acceptance_count = 0
+        likelihood.append(joint_likelihood.get_likelihood())
+        valid.append(capacity_likelihood.get_valid_percentage())
 
         for t in relevant_activity_types:
             mean_distances = distance_likelihood.get_means()
@@ -53,16 +75,20 @@ for i in tqdm(range(int(2e5))):
 
 import matplotlib.pyplot as plt
 
-plt.figure()
-
+plt.figure(figsize = (12,8))
+plt.subplot(2,1,1)
 for t in relevant_activity_types:
     plt.plot(distances[t], label = t)
-
 plt.legend()
-plt.savefig("output/distances.png")
+
+plt.subplot(2,1,2)
+plt.plot(valid, label = "Valid Share")
+plt.legend()
+
+plt.savefig("output/results.png")
 plt.close()
 
-plt.figure()
+plt.figure(figsize = (12,8))
 plt.subplot(2,1,1)
 plt.plot(likelihood, label = "Likelihood")
 plt.legend()

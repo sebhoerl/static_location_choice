@@ -4,6 +4,9 @@ import numpy as np
 import xml.sax
 import re
 
+TC = np.array((3600.0, 60.0, 1.0), dtype = np.float)
+convert_time = lambda s: np.dot(TC, np.array(s.split(':'), dtype=np.float))
+
 class PopulationReader(xml.sax.ContentHandler):
     def __init__(self, config):
         self.progress = None
@@ -33,7 +36,10 @@ class PopulationReader(xml.sax.ContentHandler):
 
         if name =="act" and self.plan_selected:
             self.activity_index += 1
-            self.activities.append((self.leg_mode, attributes['type'], attributes['facility'], self.person_index, self.activity_index))
+            self.activities.append((
+                self.leg_mode, attributes['type'], attributes['facility'],
+                convert_time(attributes['end_time']) if 'end_time' in attributes else -1.0
+                ))
 
         if name == "leg" and self.plan_selected:
             self.leg_mode = attributes['mode']
@@ -61,21 +67,20 @@ class PopulationReader(xml.sax.ContentHandler):
         activity_types = []
         activity_modes = []
         activity_facilities = []
-        person_indices = []
-        activity_indices = []
+        activity_times = []
 
         for activity in self.activities:
             activity_modes.append(constant.MODES_TO_INDEX[activity[0]] if activity[0] is not None else -1)
             activity_types.append(constant.ACTIVITY_TYPES_TO_INDEX[activity[1]])
             activity_facilities.append(facility_id_to_index[activity[2]])
-            person_indices.append(activity[3])
-            activity_indices.append(activity[4])
+            activity_times.append(activity[3])
 
         activity_types = np.array(activity_types, np.int)
         activity_modes = np.array(activity_modes, np.int)
         activity_facilities = np.array(activity_facilities, np.int)
+        activity_times = np.array(activity_times, np.float)
 
-        return person_ids, person_indices, activity_types, activity_modes, activity_facilities, activity_indices
+        return activity_types, activity_modes, activity_facilities, activity_times
 
 class PopulationWriter:
     def __init__(self, config):

@@ -1,5 +1,145 @@
 import numpy as np
-import sampler, constant
+import sampler, constant, utils
+from tqdm import tqdm
+
+class JointLikelihood(sampler.Likelihood):
+    def __init__(self):
+        self.likelihoods = []
+        self.factors = []
+
+        self.likelihood = 0.0
+
+    def initialize(self):
+        for l in self.likelihoods: l.initialize()
+        self.likelihood = np.dot(self.factors, [l.get_likelihood() for l in self.likelihoods])
+
+    def add_likelihood(self, likelihood, factor = 1.0):
+        self.likelihoods.append(likelihood)
+        self.factors.append(factor)
+
+    def evaluate(self, change):
+        values = np.array([l.evaluate(change) for l in self.likelihoods])
+
+        before = np.sum(np.dot(self.factors, values[:,1]))
+        after = np.sum(np.dot(self.factors, values[:,0]))
+
+        return after, before
+
+    def accept(self):
+        for l in self.likelihoods: l.accept()
+        self.likelihood = np.dot(self.factors, [l.get_likelihood() for l in self.likelihoods])
+
+    def reject(self):
+        for l in self.likelihoods: l.reject()
+
+    def get_likelihood(self):
+        return self.likelihood
+
+class CapacityLikelihood(sampler.Likelihood):
+    def __init__(self, config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_times, min_time, max_time, bins):
+        self.relevant_activity_types = { constant.ACTIVITY_TYPES_TO_INDEX[a] : i for i, a in enumerate(relevant_activity_types)}
+
+        self.config = config
+        self.bins = bins
+
+        self.activity_types = activity_types
+        self.activity_facilities = activity_facilities
+        self.facility_capacities = facility_capacities
+        self.occupancy = np.zeros((len(relevant_activity_types), facility_capacities.shape[1], bins), dtype = np.int)
+        self.activity_time_bins = np.floor(((activity_times - min_time) / (max_time - min_time)) * bins).astype(np.int)
+        self.activity_time_bins[self.activity_time_bins == self.bins] = self.bins - 1
+
+        self.count_total = None
+        self.count_valid = None
+        self.likelihood = None
+        self.p = 0.999
+
+        self.cache = None
+
+    def initialize(self):
+        cache = utils.load_cache("capacity_likelihood", self.config)
+
+        if cache is None:
+            progress = tqdm(total = len(self.relevant_activity_types) * self.bins, desc = "Building occupancy matrix")
+            for t, ti in self.relevant_activity_types.items():
+                type_mask = self.activity_types == t
+
+                for k in range(self.bins):
+                    bin_mask = self.activity_time_bins == k
+
+                    for facility_index in self.activity_facilities[type_mask & bin_mask]:
+                        self.occupancy[ti, facility_index, k] += 1
+
+                    progress.update()
+
+            self.count_total = self.occupancy.shape[0] * self.occupancy.shape[1] * self.occupancy.shape[2]
+            self.count_valid = 0
+
+            progress = tqdm(total = len(self.relevant_activity_types) * self.facility_capacities.shape[1], desc = "Counting valid occupancies")
+
+            for t in range(len(self.relevant_activity_types)):
+                for f in range(self.facility_capacities.shape[1]):
+                    self.count_valid += np.sum(self.occupancy[t,f,:] <= self.facility_capacities[t, f])
+                    progress.update()
+
+            self.likelihood = self.count_valid * np.log(self.p) + (self.count_total - self.count_valid) * np.log(1.0 - self.p)
+            utils.save_cache("capacity_likelihood", (self.occupancy, self.count_total, self.count_valid, self.likelihood), self.config)
+        else:
+            print("Loaded occupancy matrix from cache")
+            self.occupancy, self.count_total, self.count_valid, self.likelihood = cache
+
+    def evaluate(self, change):
+        activity_index, facility_index = change[0], change[1]
+
+        old_capacity_limit = self.facility_capacities[self.activity_types[activity_index], self.activity_facilities[activity_index]]
+        old_occupancy_count_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], self.activity_facilities[activity_index], self.activity_time_bins[activity_index]]
+        old_occupancy_count_after = old_occupancy_count_before - 1
+
+        new_capacity_limit = self.facility_capacities[self.activity_types[activity_index], facility_index]
+        new_occupancy_count_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index, self.activity_time_bins[activity_index]]
+        new_occupancy_count_after = old_occupancy_count_before + 1
+
+        old_state_before = old_occupancy_count_before <= old_capacity_limit
+        old_state_after = old_occupancy_count_after <= old_capacity_limit
+
+        new_state_before = new_occupancy_count_before <= new_capacity_limit
+        new_state_after = new_occupancy_count_after <= new_capacity_limit
+
+        count_valid = self.count_valid
+
+        if old_state_before and not old_state_after:
+            count_valid -= 1
+
+        if old_state_after and not old_state_before:
+            count_valid += 1
+
+        if new_state_before and not new_state_after:
+            count_valid -= 1
+
+        if new_state_after and not new_state_before:
+            count_valid += 1
+
+        likelihood = count_valid * np.log(self.p) + (self.count_total - count_valid) * np.log(1.0 - self.p)
+        self.cache = (activity_index, facility_index, count_valid, likelihood)
+
+        return likelihood, self.likelihood
+
+    def accept(self):
+        if self.cache is None: raise RuntimeError()
+        activity_index, facility_index, count_valid, likelihood = self.cache
+
+        self.activity_facilities[activity_index] = facility_index
+        self.count_valid = count_valid
+        self.likelihood = likelihood
+
+    def reject(self):
+        self.cache = None
+
+    def get_likelihood(self):
+        return self.likelihood
+
+    def get_valid_percentage(self):
+        return self.count_valid / self.count_total
 
 class DistanceLikelihood(sampler.Likelihood):
     def __init__(self, relevant_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, references):
