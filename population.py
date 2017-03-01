@@ -2,6 +2,7 @@ import constant, utils
 from tqdm import tqdm
 import numpy as np
 import xml.sax
+import re
 
 class PopulationReader(xml.sax.ContentHandler):
     def __init__(self, config):
@@ -15,19 +16,24 @@ class PopulationReader(xml.sax.ContentHandler):
         self.plan_selected = False
         self.leg_mode = None
 
+        self.person_index = -1
+        self.activity_index = -1
+
     def startElement(self, name, attributes):
         self.progress.update()
 
         if name == "person":
             self.person_id = attributes['id']
+            self.ids.append(self.person_id)
+            self.person_index += 1
 
         if name == "plan" and attributes["selected"] == "yes" and not ("freight_" in self.person_id or "cb_" in self.person_id):
             self.plan_selected = True
             self.persons.append(len(self.activities))
-            self.ids.append(self.person_id)
 
         if name =="act" and self.plan_selected:
-            self.activities.append((self.leg_mode, attributes['type'], attributes['facility']))
+            self.activity_index += 1
+            self.activities.append((self.leg_mode, attributes['type'], attributes['facility'], self.person_index, self.activity_index))
 
         if name == "leg" and self.plan_selected:
             self.leg_mode = attributes['mode']
@@ -52,20 +58,49 @@ class PopulationReader(xml.sax.ContentHandler):
     def process(self, facility_id_to_index):
         person_ids = self.ids
 
-        person_indices = [(self.persons[i-1], self.persons[i]) for i in range(1, len(self.persons))]
-        person_indices.append((self.persons[-1], len(self.persons)))
-
         activity_types = []
         activity_modes = []
         activity_facilities = []
+        person_indices = []
+        activity_indices = []
 
         for activity in self.activities:
             activity_modes.append(constant.MODES_TO_INDEX[activity[0]] if activity[0] is not None else -1)
             activity_types.append(constant.ACTIVITY_TYPES_TO_INDEX[activity[1]])
             activity_facilities.append(facility_id_to_index[activity[2]])
+            person_indices.append(activity[3])
+            activity_indices.append(activity[4])
 
         activity_types = np.array(activity_types, np.int)
         activity_modes = np.array(activity_modes, np.int)
         activity_facilities = np.array(activity_facilities, np.int)
 
-        return person_ids, person_indices, activity_types, activity_modes, activity_facilities
+        return person_ids, person_indices, activity_types, activity_modes, activity_facilities, activity_indices
+
+class PopulationWriter:
+    def __init__(self, config):
+        self.config = config
+
+    def write(self, input_path, output_path, activity_facilities, facility_ids):
+        progress = tqdm(total = len(activity_facilities))
+        consume_activities = False
+        activity_index = 0
+
+        with utils.open_gzip(output_path, "w+") as fout:
+            with utils.open_gzip(input_path, "r") as fin:
+                for line in fin:
+                    if b"</person" in line:
+                        consume_activities = False
+
+                    if b"<person" in line:
+                        person_id = re.search(rb'id="(.*?)"', line).group(1)
+
+                        if not (b"freight_" in person_id or b"cb_" in person_id):
+                            consume_activities = True
+
+                    if b"<act" in line and consume_activities:
+                        line = re.sub(rb'facility="(.*?)"', b'facility="%s"' % bytes(facility_ids[activity_facilities[activity_index]], "ascii"), line)
+                        activity_index += 1
+                        progress.update()
+
+                fout.write(line)

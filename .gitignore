@@ -2,3 +2,5 @@
 *.pyo
 __pycache__/
 cache/*
+output
+reference/Sebastian.csv
