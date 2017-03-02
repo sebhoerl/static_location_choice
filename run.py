@@ -11,11 +11,11 @@ config = dict(
     cache_path = "cache"
 )
 
-facility_ids, facility_coordinates, facility_capacities = FacilityReader(config).read("/home/sebastian/static_locchoice/consistent/ch_1/facilities.xml.gz")
+facility_ids, facility_coordinates, facility_capacities = FacilityReader(config).read("data/facilities.xml.gz")
 facility_id_to_index = { facility_id : index for index, facility_id in enumerate(facility_ids) }
 
 activity_types, activity_modes, activity_facilities, activity_times = PopulationReader(config).read(
-    "/home/sebastian/static_locchoice/consistent/ch_1/population.xml.gz",
+    "data/population.xml.gz",
     facility_id_to_index
 )
 
