@@ -87,7 +87,7 @@ class PopulationWriter:
         self.config = config
 
     def write(self, input_path, output_path, activity_facilities, facility_ids):
-        progress = tqdm(total = len(activity_facilities))
+        progress = tqdm(total = len(activity_facilities), desc = "Writing population")
         consume_activities = False
         activity_index = 0
 
@@ -109,3 +109,4 @@ class PopulationWriter:
                         progress.update()
 
                 fout.write(line)
+        progress.close()

@@ -3,9 +3,14 @@ from population import PopulationReader, PopulationWriter
 import constant, sampler, proposals, likelihoods
 import reference
 import pickle
+import sys
 
 import numpy as np
 from tqdm import tqdm
+
+if len(sys.argv) > 1:
+    output_interval = int(sys.argv[1])
+    total_iterations = int(sys.argv[2])
 
 config = dict(
     cache_path = "cache"
@@ -55,10 +60,10 @@ excess = []
 
 distances = { c : [] for c in distance_likelihood.categories }
 
-interval = 10000
+interval = output_interval
 
 sampler = sampler.Sampler(joint_likelihood, proposal_distribution)
-for i in tqdm(range(int(1e6))):
+for i in tqdm(range(int(total_iterations)), desc = "Sampling locations"):
     accepted = sampler.run_sample()
     if accepted: acceptance_count += 1
 
@@ -72,15 +77,11 @@ for i in tqdm(range(int(1e6))):
             mean_distances = distance_likelihood.get_means()
             distances[c].append( mean_distances[c] ) # - reference_means[t] )
 
-#writer = PopulationWriter(config)
-#writer.write(
-#    "/home/sebastian/static_locchoice/consistent/ch_1/population.xml.gz",
-#    "output/population.xml.gz",
-#    activity_facilities, facility_ids)
-
 with open("output/plotdata.p", "wb+") as f:
     pickle.dump((distances, excess, likelihood, acceptance), f)
 
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 colors = ["r", "g", "b", "c", "m", "y", "k"]
@@ -122,3 +123,12 @@ plt.plot(acceptance, label = "Acceptance")
 plt.legend()
 plt.savefig("output/stats.png")
 plt.close()
+
+
+
+
+writer = PopulationWriter(config)
+writer.write(
+    "data/population.xml.gz",
+    "output/population.xml.gz",
+    activity_facilities, facility_ids)

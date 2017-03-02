@@ -60,7 +60,7 @@ class CapacityLikelihood(sampler.Likelihood):
         self.cache = None
 
     def initialize(self):
-        cache = utils.load_cache("capacity_likelihood", self.config)
+        cache = None # utils.load_cache("capacity_likelihood", self.config)
 
         if cache is None:
             progress = tqdm(total = len(self.relevant_activity_types) * self.bins, desc = "Building occupancy matrix")
@@ -74,6 +74,7 @@ class CapacityLikelihood(sampler.Likelihood):
                         self.occupancy[ti, facility_index, k] += 1
 
                     progress.update()
+            progress.close()
 
             self.excess_count = 0
 
@@ -83,6 +84,8 @@ class CapacityLikelihood(sampler.Likelihood):
                 for f in range(self.facility_capacities.shape[1]):
                     self.excess_count += np.sum(np.maximum(self.occupancy[t,f,:] - self.facility_capacities[t, f], 0))
                     progress.update()
+                    
+            progress.close()
 
             utils.save_cache("capacity_likelihood", (self.occupancy, self.excess_count), self.config)
         else:
