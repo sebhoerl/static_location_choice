@@ -56,9 +56,9 @@ class FacilityReader(xml.sax.ContentHandler):
 
             activity_types = facility[FacilityReader.CAPACITIES]
             for i, a in enumerate(constant.ACTIVITY_TYPES):
-                capacities[i].append(activity_types[a] if a in activity_types else np.inf)
+                capacities[i].append(activity_types[a] if a in activity_types else 0)
 
         coordinates = np.array(coordinates, dtype = np.float)
-        capacities = np.array(capacities, dtype = np.float).astype(np.int)
+        capacities = np.array(capacities, dtype = np.float) #.astype(np.int)
 
         return ids, coordinates, capacities

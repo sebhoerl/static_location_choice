@@ -1,6 +1,7 @@
 import numpy as np
 import sampler, constant, utils
 from tqdm import tqdm
+import scipy.special
 
 class JointLikelihood(sampler.Likelihood):
     def __init__(self):
@@ -46,18 +47,22 @@ class CapacityLikelihood(sampler.Likelihood):
         self.activity_facilities = activity_facilities
         self.facility_capacities = facility_capacities
         self.occupancy = np.zeros((len(relevant_activity_types), facility_capacities.shape[1], bins), dtype = np.int)
+        self.activity_time_filter = (activity_times > min_time) & (activity_times < max_time)
         self.activity_time_bins = np.floor(((activity_times - min_time) / (max_time - min_time)) * bins).astype(np.int)
         self.activity_time_bins[self.activity_time_bins == self.bins] = self.bins - 1
 
         self.count_total = None
         self.count_valid = None
         self.likelihood = None
-        self.p = 0.999
+        #self.p = 0.999
+
+        self.alpha = 5.0
+        self.beta = 0.1
 
         self.cache = None
 
     def initialize(self):
-        cache = utils.load_cache("capacity_likelihood", self.config)
+        cache = None #utils.load_cache("capacity_likelihood", self.config)
 
         if cache is None:
             progress = tqdm(total = len(self.relevant_activity_types) * self.bins, desc = "Building occupancy matrix")
@@ -82,11 +87,14 @@ class CapacityLikelihood(sampler.Likelihood):
                     self.count_valid += np.sum(self.occupancy[t,f,:] <= self.facility_capacities[t, f])
                     progress.update()
 
-            self.likelihood = self.count_valid * np.log(self.p) + (self.count_total - self.count_valid) * np.log(1.0 - self.p)
-            utils.save_cache("capacity_likelihood", (self.occupancy, self.count_total, self.count_valid, self.likelihood), self.config)
+            #self.likelihood = self.count_valid * np.log(self.p) + (self.count_total - self.count_valid) * np.log(1.0 - self.p)
+            utils.save_cache("capacity_likelihood", (self.occupancy, self.count_total, self.count_valid), self.config)
         else:
             print("Loaded occupancy matrix from cache")
-            self.occupancy, self.count_total, self.count_valid, self.likelihood = cache
+            self.occupancy, self.count_total, self.count_valid = cache
+
+        x = self.count_valid / self.count_total
+        self.likelihood = (self.alpha - 1.0) * np.log(x) + (self.beta - 1.0) * np.log(1.0 - x) - scipy.special.beta(self.alpha, self.beta)
 
     def evaluate(self, change):
         activity_index, facility_index = change[0], change[1]
@@ -119,7 +127,10 @@ class CapacityLikelihood(sampler.Likelihood):
         if new_state_after and not new_state_before:
             count_valid += 1
 
-        likelihood = count_valid * np.log(self.p) + (self.count_total - count_valid) * np.log(1.0 - self.p)
+        x = count_valid / self.count_total
+        likelihood = (self.alpha - 1.0) * np.log(x) + (self.beta - 1.0) * np.log(1.0 - x) - scipy.special.beta(self.alpha, self.beta)
+
+        #likelihood = count_valid * np.log(self.p) + (self.count_total - count_valid) * np.log(1.0 - self.p)
         self.cache = (activity_index, facility_index, count_valid, likelihood)
 
         return likelihood, self.likelihood

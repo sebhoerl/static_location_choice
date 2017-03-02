@@ -24,10 +24,11 @@ facility_capacities = facility_capacities.astype(np.float) * 0.01
 facility_capacities = np.ceil(facility_capacities)
 
 # Random initialization
-#for t in relevant_activity_types:
-#    type_indices = np.where(facility_capacities[constant.ACTIVITY_TYPES_TO_INDEX[t],:] > 0)[0]
-#    type_mask = activity_types == constant.ACTIVITY_TYPES_TO_INDEX[t]
-#    activity_facilities[type_mask] = np.random.choice(type_indices, np.sum(type_mask))
+for t in relevant_activity_types:
+    type_indices = np.where(facility_capacities[constant.ACTIVITY_TYPES_TO_INDEX[t],:] > 0)[0]
+    type_mask = activity_types == constant.ACTIVITY_TYPES_TO_INDEX[t]
+    #activity_facilities[type_mask] = np.random.choice(type_indices, np.sum(type_mask))
+    activity_facilities[type_mask] = type_indices[0]
 
 proposal_distribution = proposals.RandomProposalDistribution(relevant_activity_types, activity_types, facility_capacities)
 references = reference.get_by_purpose()
@@ -50,10 +51,10 @@ valid = []
 
 distances = { t : [] for t in relevant_activity_types }
 
-interval = 10000
+interval = 1000
 
 sampler = sampler.Sampler(joint_likelihood, proposal_distribution)
-for i in tqdm(range(int(1e6))):
+for i in tqdm(range(int(1e5))):
     accepted = sampler.run_sample()
     if accepted: acceptance_count += 1
 
