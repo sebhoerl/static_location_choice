@@ -167,7 +167,7 @@ class DistanceLikelihood(sampler.Likelihood):
             self.references = { constant.ACTIVITY_TYPES_TO_INDEX[t] : v for t, v in references.items() }
 
             self.relevant_activity_mask_by_category = {
-                t : activity_types == t
+                t : ( (activity_modes != -1) & (activity_types == t) )
                 for t in self.categories
             }
 
