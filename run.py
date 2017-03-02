@@ -33,6 +33,7 @@ facility_capacities = np.ceil(facility_capacities)
 
 proposal_distribution = proposals.RandomProposalDistribution(relevant_activity_types, activity_types, facility_capacities)
 references = reference.get_by_purpose()
+#references = reference.get_by_mode_and_purpose()
 
 distance_likelihood = likelihoods.DistanceLikelihood(relevant_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, references)
 distance_likelihood.initialize()
@@ -43,14 +44,14 @@ capacity_likelihood.initialize()
 
 joint_likelihood = likelihoods.JointLikelihood()
 joint_likelihood.add_likelihood(distance_likelihood, 1.0)
-joint_likelihood.add_likelihood(capacity_likelihood, 1.0)
+joint_likelihood.add_likelihood(capacity_likelihood, 0.0)
 
 acceptance_count = 0
 acceptance = []
 likelihood = []
 excess = []
 
-distances = { t : [] for t in relevant_activity_types }
+distances = { c : [] for c in distance_likelihood.categories }
 
 interval = 1000
 
@@ -65,9 +66,9 @@ for i in tqdm(range(int(1e5))):
         likelihood.append(joint_likelihood.get_likelihood())
         excess.append(capacity_likelihood.get_excess_count())
 
-        for t in relevant_activity_types:
+        for c in distance_likelihood.categories:
             mean_distances = distance_likelihood.get_means()
-            distances[t].append( mean_distances[constant.ACTIVITY_TYPES_TO_INDEX[t]] ) # - references[t] )
+            distances[c].append( mean_distances[c] ) # - references[t] )
 
 #writer = PopulationWriter(config)
 #writer.write(
@@ -80,17 +81,33 @@ with open("output/plotdata.p", "wb+") as f:
 
 import matplotlib.pyplot as plt
 
-plt.figure(figsize = (12,8))
-plt.subplot(2,1,1)
-for t in relevant_activity_types:
-    plt.plot(distances[t], label = t)
-plt.legend()
+colors = ["r", "g", "b", "c", "m", "y", "k"]
 
-plt.subplot(2,1,2)
+if distance_likelihood.use_modes:
+    for m in range(len(constant.MODES)):
+        plt.figure(figsize = (12,8))
+        for t, color in zip(relevant_activity_types, colors):
+            t = constant.ACTIVITY_TYPES_TO_INDEX[t]
+            plt.plot(distances[(m,t)], label = constant.ACTIVITY_TYPES[t], color = color)
+            plt.plot([0, len(distances[(m,t)])], [references[(constant.MODES[m], constant.ACTIVITY_TYPES[t])], references[(constant.MODES[m], constant.ACTIVITY_TYPES[t])]], "--", color = color)
+        plt.title(constant.MODES[m])
+        plt.legend()
+        plt.savefig("output/%s.png" % constant.MODES[m])
+        plt.close()
+else:
+    plt.figure(figsize = (12,8))
+    for t, color in zip(relevant_activity_types, colors):
+        t = constant.ACTIVITY_TYPES_TO_INDEX[t]
+        plt.plot(distances[t], label = constant.ACTIVITY_TYPES[t], color = color)
+        plt.plot([0, len(distances[t])], [references[constant.ACTIVITY_TYPES[t]], references[constant.ACTIVITY_TYPES[t]]], "--", color = color)
+    plt.legend()
+    plt.savefig("output/distances.png")
+    plt.close()
+
+plt.figure(figsize = (12,8))
 plt.plot(excess, label = "Excess Occupancy")
 plt.legend()
-
-plt.savefig("output/results.png")
+plt.savefig("output/occupancy.png")
 plt.close()
 
 plt.figure(figsize = (12,8))
