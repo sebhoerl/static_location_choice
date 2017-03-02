@@ -51,18 +51,15 @@ class CapacityLikelihood(sampler.Likelihood):
         self.activity_time_bins = np.floor(((activity_times - min_time) / (max_time - min_time)) * bins).astype(np.int)
         self.activity_time_bins[self.activity_time_bins == self.bins] = self.bins - 1
 
-        self.count_total = None
-        self.count_valid = None
+        self.excess_count = None
         self.likelihood = None
         #self.p = 0.999
 
-        self.alpha = 5.0
-        self.beta = 0.1
-
+        self.alpha = 1e-3
         self.cache = None
 
     def initialize(self):
-        cache = None #utils.load_cache("capacity_likelihood", self.config)
+        cache = utils.load_cache("capacity_likelihood", self.config)
 
         if cache is None:
             progress = tqdm(total = len(self.relevant_activity_types) * self.bins, desc = "Building occupancy matrix")
@@ -77,24 +74,21 @@ class CapacityLikelihood(sampler.Likelihood):
 
                     progress.update()
 
-            self.count_total = self.occupancy.shape[0] * self.occupancy.shape[1] * self.occupancy.shape[2]
-            self.count_valid = 0
+            self.excess_count = 0
 
             progress = tqdm(total = len(self.relevant_activity_types) * self.facility_capacities.shape[1], desc = "Counting valid occupancies")
 
             for t in range(len(self.relevant_activity_types)):
                 for f in range(self.facility_capacities.shape[1]):
-                    self.count_valid += np.sum(self.occupancy[t,f,:] <= self.facility_capacities[t, f])
+                    self.excess_count += np.sum(np.maximum(self.occupancy[t,f,:] - self.facility_capacities[t, f], 0))
                     progress.update()
 
-            #self.likelihood = self.count_valid * np.log(self.p) + (self.count_total - self.count_valid) * np.log(1.0 - self.p)
-            utils.save_cache("capacity_likelihood", (self.occupancy, self.count_total, self.count_valid), self.config)
+            utils.save_cache("capacity_likelihood", (self.occupancy, self.excess_count), self.config)
         else:
             print("Loaded occupancy matrix from cache")
-            self.occupancy, self.count_total, self.count_valid = cache
+            self.occupancy, self.excess_count = cache
 
-        x = self.count_valid / self.count_total
-        self.likelihood = (self.alpha - 1.0) * np.log(x) + (self.beta - 1.0) * np.log(1.0 - x) - scipy.special.beta(self.alpha, self.beta)
+        self.likelihood = -self.alpha * self.excess_count
 
     def evaluate(self, change):
         activity_index, facility_index = change[0], change[1]
@@ -105,7 +99,7 @@ class CapacityLikelihood(sampler.Likelihood):
 
         new_capacity_limit = self.facility_capacities[self.activity_types[activity_index], facility_index]
         new_occupancy_count_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index, self.activity_time_bins[activity_index]]
-        new_occupancy_count_after = old_occupancy_count_before + 1
+        new_occupancy_count_after = new_occupancy_count_before + 1
 
         old_state_before = old_occupancy_count_before <= old_capacity_limit
         old_state_after = old_occupancy_count_after <= old_capacity_limit
@@ -113,34 +107,28 @@ class CapacityLikelihood(sampler.Likelihood):
         new_state_before = new_occupancy_count_before <= new_capacity_limit
         new_state_after = new_occupancy_count_after <= new_capacity_limit
 
-        count_valid = self.count_valid
+        excess_count = self.excess_count
 
-        if old_state_before and not old_state_after:
-            count_valid -= 1
+        excess_count -= max(0, old_occupancy_count_before - old_capacity_limit)
+        excess_count -= max(0, new_occupancy_count_before - new_capacity_limit)
 
-        if old_state_after and not old_state_before:
-            count_valid += 1
+        excess_count += max(0, old_occupancy_count_after - old_capacity_limit)
+        excess_count += max(0, new_occupancy_count_after - new_capacity_limit)
 
-        if new_state_before and not new_state_after:
-            count_valid -= 1
+        likelihood = -self.alpha * excess_count
 
-        if new_state_after and not new_state_before:
-            count_valid += 1
-
-        x = count_valid / self.count_total
-        likelihood = (self.alpha - 1.0) * np.log(x) + (self.beta - 1.0) * np.log(1.0 - x) - scipy.special.beta(self.alpha, self.beta)
-
-        #likelihood = count_valid * np.log(self.p) + (self.count_total - count_valid) * np.log(1.0 - self.p)
-        self.cache = (activity_index, facility_index, count_valid, likelihood)
+        self.cache = (activity_index, facility_index, excess_count, likelihood)
 
         return likelihood, self.likelihood
 
     def accept(self):
         if self.cache is None: raise RuntimeError()
-        activity_index, facility_index, count_valid, likelihood = self.cache
+        activity_index, facility_index, excess_count, likelihood = self.cache
 
+        self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], self.activity_facilities[activity_index]] -= 1
+        self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index] += 1
         self.activity_facilities[activity_index] = facility_index
-        self.count_valid = count_valid
+        self.excess_count = excess_count
         self.likelihood = likelihood
 
     def reject(self):
@@ -151,6 +139,9 @@ class CapacityLikelihood(sampler.Likelihood):
 
     def get_valid_percentage(self):
         return self.count_valid / self.count_total
+
+    def get_excess_count(self):
+        return self.excess_count
 
 class DistanceLikelihood(sampler.Likelihood):
     def __init__(self, relevant_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, references):

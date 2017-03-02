@@ -32,7 +32,7 @@ class Sampler:
 
         a = a1 + a2
 
-        if a >= 0 or np.log(np.random.random()) <= a:
+        if a >= 0:# or np.log(np.random.random()) <= a:
             self.likelihood.accept()
             return True
         else:
