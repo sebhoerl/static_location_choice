@@ -189,7 +189,7 @@ class DistanceLikelihood(sampler.Likelihood):
         self.cache = None
         self.likelihood = None
 
-        self.sigma = { c : 1.0 / len(self.relevant_activity_mask_by_category[c]) for c in self.categories }
+        self.sigma = { c : 1.0 / len(self.relevant_activity_indices_by_category[c]) for c in self.categories }
 
     def initialize(self):
         from_coordinates = self.facility_coordinates[self.activity_facilities[self.relevant_activity_indices - 1]]
