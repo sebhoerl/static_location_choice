@@ -3,7 +3,8 @@ import utils
 import constant
 
 def get_by_mode_and_purpose(distance = "routed"):
-    data = {}
+    means = {}
+    variances = {}
 
     with open("reference/stats.csv") as f:
         for line in f:
@@ -11,14 +12,17 @@ def get_by_mode_and_purpose(distance = "routed"):
             line = line.strip().split('\t')
 
             if distance == "routed":
-                data[(line[0], line[1])] = float(line[2])
+                means[(line[0], line[1])] = float(line[2])
+                variances[(line[0], line[1])] = float(line[3])
             else:
-                data[(line[0], line[1])] = float(line[4])
+                means[(line[0], line[1])] = float(line[4])
+                variances[(line[0], line[1])] = float(line[5])
 
-    return data
+    return means, variances
 
 def get_by_purpose(distance = "routed"):
-    data = {}
+    means = {}
+    variances = {}
 
     with open("reference/stats_purpose.csv") as f:
         for line in f:
@@ -26,8 +30,10 @@ def get_by_purpose(distance = "routed"):
             line = line.strip().split('\t')
 
             if distance == "routed":
-                data[line[0]] = float(line[1])
+                means[line[0]] = float(line[1])
+                variances[line[0]] = float(line[2])
             else:
-                data[line[0]] = float(line[3])
+                means[line[0]] = float(line[3])
+                variances[line[0]] = float(line[4])
 
-    return data
+    return means, variances

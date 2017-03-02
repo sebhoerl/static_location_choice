@@ -67,13 +67,13 @@ with open("Sebastian.csv") as f:
 
 
 with open("stats.csv", "w+") as f:
-    f.write("mode\tpurpose\tmean_routed_distance\tmedian_routed_distance\tmean_crowfly_distance\tmedian_crowfly_distance\n")
+    f.write("mode\tpurpose\tmean_routed_distance\tvar_routed_distance\tmean_crowfly_distance\tvar_crowfly_distance\n")
 
     for m, p in itertools.product(modes, purposes):
-        f.write("%s\t%s\t%f\t%f\t%f\t%f\n" % (m, p, np.mean(routed_distances[(m,p)]), np.median(routed_distances[(m,p)]), np.mean(crowfly_distances[(m,p)]), np.median(crowfly_distances[(m,p)])))
+        f.write("%s\t%s\t%f\t%f\t%f\t%f\n" % (m, p, np.mean(routed_distances[(m,p)]), np.var(routed_distances[(m,p)]), np.mean(crowfly_distances[(m,p)]), np.var(crowfly_distances[(m,p)])))
 
 with open("stats_purpose.csv", "w+") as f:
-    f.write("purpose\tmean_routed_distance\tmedian_routed_distance\tmean_crowfly_distance\tmedian_crowfly_distance\n")
+    f.write("purpose\tmean_routed_distance\tvar_routed_distance\tmean_crowfly_distance\tvar_crowfly_distance\n")
 
     for p in purposes:
-        f.write("%s\t%f\t%f\t%f\t%f\n" % (p, np.mean(routed_distances_purpose[p]), np.median(routed_distances_purpose[p]), np.mean(crowfly_distances_purpose[p]), np.median(crowfly_distances_purpose[p])))
+        f.write("%s\t%f\t%f\t%f\t%f\n" % (p, np.mean(routed_distances_purpose[p]), np.var(routed_distances_purpose[p]), np.mean(crowfly_distances_purpose[p]), np.var(crowfly_distances_purpose[p])))

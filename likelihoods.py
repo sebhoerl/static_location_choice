@@ -145,8 +145,8 @@ class CapacityLikelihood(sampler.Likelihood):
         return self.excess_count
 
 class DistanceLikelihood(sampler.Likelihood):
-    def __init__(self, relevant_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, references):
-        self.use_modes = isinstance(list(references.keys())[0], tuple)
+    def __init__(self, relevant_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, reference_means, reference_variances):
+        self.use_modes = isinstance(list(reference_means.keys())[0], tuple)
 
         self.relevant_activity_types = [constant.ACTIVITY_TYPES_TO_INDEX[a] for a in relevant_activity_types]
         self.activity_facilities = activity_facilities
@@ -156,7 +156,7 @@ class DistanceLikelihood(sampler.Likelihood):
 
         if self.use_modes:
             self.categories = list(itertools.product(constant.MODES_TO_INDEX.values(), self.relevant_activity_types))
-            self.references = { (constant.MODES_TO_INDEX[m], constant.ACTIVITY_TYPES_TO_INDEX[t]) : v for (m,t), v in references.items() }
+            self.references = { (constant.MODES_TO_INDEX[m], constant.ACTIVITY_TYPES_TO_INDEX[t]) : v for (m,t), v in reference_means.items() }
 
             self.relevant_activity_mask_by_category = {
                 (m, t) : ( (activity_modes == m) & (activity_types == t) )
@@ -210,7 +210,7 @@ class DistanceLikelihood(sampler.Likelihood):
 
         front_old_distance = self.distances[change[0]]
         front_new_distance = np.sqrt(np.sum((self.facility_coordinates[self.activity_facilities[change[0] - 1]] - change_coord)**2)) / 1000.0
-        change_means[change_category] += (front_new_distance - front_old_distance) / len(self.relevant_activity_mask_by_category[change_category])
+        change_means[change_category] += (front_new_distance - front_old_distance) / len(self.relevant_activity_indices_by_category[change_category])
 
         change_distances.append((change[0], front_new_distance))
 
@@ -218,7 +218,7 @@ class DistanceLikelihood(sampler.Likelihood):
             back_category = self._get_category(change[0] + 1)
             back_old_distance = self.distances[change[0] + 1]
             back_new_distance = np.sqrt(np.sum((self.facility_coordinates[self.activity_facilities[change[0] + 1]] - change_coord)**2)) / 1000.0
-            change_means[back_category] += (back_new_distance - back_old_distance) / len(self.relevant_activity_mask_by_category[back_category])
+            change_means[back_category] += (back_new_distance - back_old_distance) / len(self.relevant_activity_indices_by_category[back_category])
 
             change_distances.append((change[0] + 1, back_new_distance))
 
