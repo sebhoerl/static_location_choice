@@ -11,6 +11,9 @@ from tqdm import tqdm
 if len(sys.argv) > 1:
     output_interval = int(sys.argv[1])
     total_iterations = int(sys.argv[2])
+else:
+    output_interval = int(1e3)
+    total_iterations = int(1e5)
 
 config = dict(
     cache_path = "cache"
@@ -19,7 +22,7 @@ config = dict(
 facility_ids, facility_coordinates, facility_capacities = FacilityReader(config).read("data/facilities.xml.gz")
 facility_id_to_index = { facility_id : index for index, facility_id in enumerate(facility_ids) }
 
-activity_types, activity_modes, activity_facilities, activity_times = PopulationReader(config).read(
+activity_types, activity_modes, activity_facilities, activity_end_times, activity_start_times = PopulationReader(config).read(
     "data/population.xml.gz",
     facility_id_to_index
 )
@@ -46,7 +49,7 @@ distance_likelihood = likelihoods.DistanceLikelihood(relevant_activity_types, ac
 distance_likelihood.initialize()
 
 min_time, max_time, bins = 0.0, 3600 * 24, 24 * 12
-capacity_likelihood = likelihoods.CapacityLikelihood(config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_times, min_time, max_time, bins)
+capacity_likelihood = likelihoods.CapacityLikelihood(config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_end_times, activity_start_times, min_time, max_time, bins)
 capacity_likelihood.initialize()
 
 joint_likelihood = likelihoods.JointLikelihood()

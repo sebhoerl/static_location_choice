@@ -38,7 +38,8 @@ class PopulationReader(xml.sax.ContentHandler):
             self.activity_index += 1
             self.activities.append((
                 self.leg_mode, attributes['type'], attributes['facility'],
-                convert_time(attributes['end_time']) if 'end_time' in attributes else -1.0
+                convert_time(attributes['end_time']) if 'end_time' in attributes else -1.0,
+                convert_time(attributes['start_time']) if 'start_time' in attributes else -1.0
                 ))
 
         if name == "leg" and self.plan_selected:
@@ -67,20 +68,23 @@ class PopulationReader(xml.sax.ContentHandler):
         activity_types = []
         activity_modes = []
         activity_facilities = []
-        activity_times = []
+        activity_end_times = []
+        activity_start_times = []
 
         for activity in self.activities:
             activity_modes.append(constant.MODES_TO_INDEX[activity[0]] if activity[0] is not None else -1)
             activity_types.append(constant.ACTIVITY_TYPES_TO_INDEX[activity[1]])
             activity_facilities.append(facility_id_to_index[activity[2]])
-            activity_times.append(activity[3])
+            activity_end_times.append(activity[3])
+            activity_start_times.append(activity[4])
 
         activity_types = np.array(activity_types, np.int)
         activity_modes = np.array(activity_modes, np.int)
         activity_facilities = np.array(activity_facilities, np.int)
-        activity_times = np.array(activity_times, np.float)
+        activity_end_times = np.array(activity_end_times, np.float)
+        activity_start_times = np.array(activity_start_times, np.float)
 
-        return activity_types, activity_modes, activity_facilities, activity_times
+        return activity_types, activity_modes, activity_facilities, activity_end_times, activity_start_times
 
 class PopulationWriter:
     def __init__(self, config):

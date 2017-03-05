@@ -37,8 +37,10 @@ class JointLikelihood(sampler.Likelihood):
     def get_likelihood(self):
         return self.likelihood
 
+stime = lambda x: "%02d:%02d:%02d" % (int(x) // 3600, (int(x) % 3600) // 60, int(x) % 60)
+
 class CapacityLikelihood(sampler.Likelihood):
-    def __init__(self, config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_times, min_time, max_time, bins):
+    def __init__(self, config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_end_times, activity_start_times, min_time, max_time, bins):
         self.relevant_activity_types = { constant.ACTIVITY_TYPES_TO_INDEX[a] : i for i, a in enumerate(relevant_activity_types)}
 
         self.config = config
@@ -48,13 +50,23 @@ class CapacityLikelihood(sampler.Likelihood):
         self.activity_facilities = activity_facilities
         self.facility_capacities = facility_capacities
         self.occupancy = np.zeros((len(relevant_activity_types), facility_capacities.shape[1], bins), dtype = np.int)
-        self.activity_time_filter = (activity_times > min_time) & (activity_times < max_time)
-        self.activity_time_bins = np.floor(((activity_times - min_time) / (max_time - min_time)) * bins).astype(np.int)
-        self.activity_time_bins[self.activity_time_bins == self.bins] = self.bins - 1
+
+        end_times = np.copy(activity_end_times)
+        end_times[end_times < 0.0] = np.inf
+
+        start_times = np.copy(activity_start_times)
+        start_times[start_times < 0.0] = 0.0
+
+        start_bins = np.minimum(np.maximum(np.floor(((start_times - min_time) / (max_time - min_time)) * bins), 0), self.bins - 1).astype(np.int)
+        end_bins = np.minimum(np.maximum(np.maximum(np.floor(((end_times - min_time) / (max_time - min_time)) * float(bins)), start_bins + 1), 0), self.bins - 1).astype(np.int)
+
+        self.activity_time_indices = []
+
+        for i in tqdm(range(len(activity_end_times)), desc = "Constructing activity time indices"):
+            self.activity_time_indices.append(np.arange(start_bins[i], end_bins[i]))
 
         self.excess_count = None
         self.likelihood = None
-        #self.p = 0.999
 
         self.alpha = 1e-3
         self.cache = None
@@ -63,15 +75,12 @@ class CapacityLikelihood(sampler.Likelihood):
         cache = None # utils.load_cache("capacity_likelihood", self.config)
 
         if cache is None:
-            progress = tqdm(total = len(self.relevant_activity_types) * self.bins, desc = "Building occupancy matrix")
+            progress = tqdm(total = len(self.relevant_activity_types) * len(self.activity_facilities), desc = "Building occupancy matrix")
             for t, ti in self.relevant_activity_types.items():
                 type_mask = self.activity_types == t
 
-                for k in range(self.bins):
-                    bin_mask = self.activity_time_bins == k
-
-                    for facility_index in self.activity_facilities[type_mask & bin_mask]:
-                        self.occupancy[ti, facility_index, k] += 1
+                for i in range(len(self.activity_facilities)):
+                    self.occupancy[ti, self.activity_facilities[i], self.activity_time_indices[i]] += 1
 
                     progress.update()
             progress.close()
@@ -98,26 +107,20 @@ class CapacityLikelihood(sampler.Likelihood):
         activity_index, facility_index = change[0], change[1]
 
         old_capacity_limit = self.facility_capacities[self.activity_types[activity_index], self.activity_facilities[activity_index]]
-        old_occupancy_count_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], self.activity_facilities[activity_index], self.activity_time_bins[activity_index]]
-        old_occupancy_count_after = old_occupancy_count_before - 1
+        old_occupancy_counts_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], self.activity_facilities[activity_index], self.activity_time_indices[activity_index]]
+        old_occupancy_counts_after = old_occupancy_counts_before - 1
 
         new_capacity_limit = self.facility_capacities[self.activity_types[activity_index], facility_index]
-        new_occupancy_count_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index, self.activity_time_bins[activity_index]]
-        new_occupancy_count_after = new_occupancy_count_before + 1
-
-        old_state_before = old_occupancy_count_before <= old_capacity_limit
-        old_state_after = old_occupancy_count_after <= old_capacity_limit
-
-        new_state_before = new_occupancy_count_before <= new_capacity_limit
-        new_state_after = new_occupancy_count_after <= new_capacity_limit
+        new_occupancy_counts_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index, self.activity_time_indices[activity_index]]
+        new_occupancy_counts_after = new_occupancy_counts_before + 1
 
         excess_count = self.excess_count
 
-        excess_count -= max(0, old_occupancy_count_before - old_capacity_limit)
-        excess_count -= max(0, new_occupancy_count_before - new_capacity_limit)
+        excess_count -= np.sum(np.maximum(old_occupancy_counts_before - old_capacity_limit, 0))
+        excess_count -= np.sum(np.maximum(new_occupancy_counts_before - new_capacity_limit, 0))
 
-        excess_count += max(0, old_occupancy_count_after - old_capacity_limit)
-        excess_count += max(0, new_occupancy_count_after - new_capacity_limit)
+        excess_count += np.sum(np.maximum(old_occupancy_counts_after - old_capacity_limit, 0))
+        excess_count += np.sum(np.maximum(new_occupancy_counts_after - new_capacity_limit, 0))
 
         likelihood = np.log(self.alpha) - self.alpha * excess_count
 
@@ -129,8 +132,8 @@ class CapacityLikelihood(sampler.Likelihood):
         if self.cache is None: raise RuntimeError()
         activity_index, facility_index, excess_count, likelihood = self.cache
 
-        self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], self.activity_facilities[activity_index]] -= 1
-        self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index] += 1
+        self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], self.activity_facilities[activity_index], self.activity_time_indices[activity_index]] -= 1
+        self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index, self.activity_time_indices[activity_index]] += 1
         self.activity_facilities[activity_index] = facility_index
         self.excess_count = excess_count
         self.likelihood = likelihood
