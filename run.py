@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 config = dict(
     cache_path = "cache",
-    output_interval = int(1e5),
+    output_interval = int(1e4),
     measurement_interval = int(1e3),
     total_iterations = int(1e6),
     validation_interval = None,
@@ -27,7 +27,8 @@ config = dict(
     distribution_mode = "random",
     minimum_time = 0.0,
     maximum_time = 24.0 * 3600,
-    time_bins = 24 * 12
+    time_bins = 24 * 12,
+    capacity_likelihood_alpha = 1e-3
 )
 
 if len(sys.argv) > 1:
@@ -58,7 +59,10 @@ for t in relevant_activity_types:
     elif config["distribution_mode"] == "singleton":
         activity_facilities[type_mask] = type_indices[0]
 
-proposal_distribution = proposals.RandomProposalDistribution(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes)
+census_distances = reference.get_crowfly_distances()
+proposal_distribution = proposals.DistanceSamplingProposal(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances)
+#proposal_distribution = proposals.RandomProposalDistribution(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes)
+
 reference_means, reference_variances = reference.get_by_purpose()
 reference_means, reference_variances = reference.get_by_mode_and_purpose()
 
@@ -102,7 +106,7 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
             mean_distances = distance_likelihood.get_means()
             distances[c].append( mean_distances[c] ) # - reference_means[t] )
 
-    if i % config["output_interval"] == 0:
+    if i % config["output_interval"] == 0 and i > 0:
         with open("output/plotdata.p", "wb+") as f:
             pickle.dump((distances, excess, likelihood, acceptance), f)
 
@@ -117,6 +121,7 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
                     plt.plot(distances[(m,t)], label = constant.ACTIVITY_TYPES[t], color = color)
                     plt.plot([0, len(distances[(m,t)])], [reference_means[(constant.MODES[m], constant.ACTIVITY_TYPES[t])], reference_means[(constant.MODES[m], constant.ACTIVITY_TYPES[t])]], "--", color = color)
                 plt.title(constant.MODES[m])
+                plt.grid()
                 plt.legend()
                 plt.savefig("output/%s.png" % constant.MODES[m])
                 plt.close()
@@ -127,11 +132,13 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
                 plt.plot(distances[t], label = constant.ACTIVITY_TYPES[t], color = color)
                 plt.plot([0, len(distances[t])], [reference_means[constant.ACTIVITY_TYPES[t]], reference_means[constant.ACTIVITY_TYPES[t]]], "--", color = color)
             plt.legend()
+            plt.grid()
             plt.savefig("output/distances.png")
             plt.close()
 
         plt.figure(figsize = (12,8))
         plt.plot(excess, label = "Excess Occupancy")
+        plt.grid()
         plt.legend()
         plt.savefig("output/occupancy.png")
         plt.close()
@@ -140,9 +147,11 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
         plt.subplot(2,1,1)
         plt.plot(likelihood, label = "Likelihood")
         plt.legend()
+        plt.grid()
         plt.subplot(2,1,2)
         plt.plot(acceptance, label = "Acceptance")
         plt.legend()
+        plt.grid()
         plt.savefig("output/stats.png")
         plt.close()
 

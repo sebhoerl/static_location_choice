@@ -68,7 +68,7 @@ class CapacityLikelihood(sampler.Likelihood):
         self.excess_count = None
         self.likelihood = None
 
-        self.alpha = 1e-3
+        self.alpha = config["capacity_likelihood_alpha"]
         self.cache = None
 
     def initialize(self):

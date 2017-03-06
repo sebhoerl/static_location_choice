@@ -1,6 +1,11 @@
 import numpy as np
 import utils
 import constant
+import pickle
+
+def get_crowfly_distances():
+    with open("reference/crowfly.p", "rb") as f:
+        return pickle.load(f)
 
 def get_by_mode_and_purpose(distance = "routed"):
     means = {}
