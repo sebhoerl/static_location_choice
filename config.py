@@ -6,6 +6,7 @@ config = dict(
     validation_interval = None,
     relevant_modes = ["car", "pt", "bike", "walk"],
     relevant_activity_types = ["shop", "leisure", "escort_kids", "escort_other", "remote_work"],
+    additional_activity_types = ["home", "work", "education"],
     source_facilities_path = "data/facilities.xml.gz",
     source_population_path = "data/population.xml.gz",
     target_population_path = "output/population.xml.gz",

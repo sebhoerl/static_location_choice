@@ -8,6 +8,7 @@ import sys
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import cm
 
 import numpy as np
 from tqdm import tqdm
@@ -27,6 +28,7 @@ activity_types, activity_modes, activity_facilities, activity_end_times, activit
     facility_id_to_index
 )
 
+additional_activity_types = config["additional_activity_types"]
 relevant_activity_types = config["relevant_activity_types"]
 relevant_modes = config["relevant_modes"]
 
@@ -52,7 +54,7 @@ else:
 reference_means, reference_variances = reference.get_by_purpose()
 reference_means, reference_variances = reference.get_by_mode_and_purpose()
 
-distance_likelihood = likelihoods.DistanceLikelihood(relevant_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, reference_means, reference_variances, relevant_modes)
+distance_likelihood = likelihoods.DistanceLikelihood(relevant_activity_types + additional_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, reference_means, reference_variances, relevant_modes)
 distance_likelihood.initialize()
 
 min_time, max_time, bins = config["minimum_time"], config["maximum_time"], config["time_bins"]
@@ -96,13 +98,14 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
         with open("output/plotdata.p", "wb+") as f:
             pickle.dump((distances, excess, likelihood, acceptance), f)
 
-        colors = ["r", "g", "b", "c", "m", "y", "k"]
+        colors = cm.rainbow(np.linspace(0,1,len(relevant_activity_types + additional_activity_types)))
+        #colors = ["r", "g", "b", "c", "m", "y", "k", (0.5, 0.5, 0.5)]
 
         if distance_likelihood.use_modes:
             for m in relevant_modes:
                 m = constant.MODES_TO_INDEX[m]
                 plt.figure(figsize = (12,8))
-                for t, color in zip(relevant_activity_types, colors):
+                for t, color in zip(relevant_activity_types + additional_activity_types, colors):
                     t = constant.ACTIVITY_TYPES_TO_INDEX[t]
                     plt.plot(distances[(m,t)], label = constant.ACTIVITY_TYPES[t], color = color)
                     plt.plot([0, len(distances[(m,t)])], [reference_means[(constant.MODES[m], constant.ACTIVITY_TYPES[t])], reference_means[(constant.MODES[m], constant.ACTIVITY_TYPES[t])]], "--", color = color)
@@ -113,7 +116,7 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
                 plt.close()
         else:
             plt.figure(figsize = (12,8))
-            for t, color in zip(relevant_activity_types, colors):
+            for t, color in zip(relevant_activity_types + additional_activity_types, colors):
                 t = constant.ACTIVITY_TYPES_TO_INDEX[t]
                 plt.plot(distances[t], label = constant.ACTIVITY_TYPES[t], color = color)
                 plt.plot([0, len(distances[t])], [reference_means[constant.ACTIVITY_TYPES[t]], reference_means[constant.ACTIVITY_TYPES[t]]], "--", color = color)
