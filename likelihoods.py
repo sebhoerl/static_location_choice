@@ -72,26 +72,26 @@ class CapacityLikelihood(sampler.Likelihood):
         self.cache = None
 
     def initialize(self):
-        cache = None # utils.load_cache("capacity_likelihood", self.config)
+        cache = None #utils.load_cache("capacity_likelihood", self.config)
 
         if cache is None:
-            progress = tqdm(total = len(self.relevant_activity_types) * len(self.activity_facilities), desc = "Building occupancy matrix")
+            progress = tqdm(total = len(self.relevant_activity_types), desc = "Building occupancy matrix")
             for t, ti in self.relevant_activity_types.items():
-                type_mask = self.activity_types == t
+                type_indices = np.where(self.activity_types == t)[0]
 
-                for i in range(len(self.activity_facilities)):
+                for i in type_indices:
                     self.occupancy[ti, self.activity_facilities[i], self.activity_time_indices[i]] += 1
 
-                    progress.update()
+                progress.update()
             progress.close()
 
             self.excess_count = 0
 
             progress = tqdm(total = len(self.relevant_activity_types) * self.facility_capacities.shape[1], desc = "Counting valid occupancies")
 
-            for t in range(len(self.relevant_activity_types)):
+            for t, ti in self.relevant_activity_types.items():
                 for f in range(self.facility_capacities.shape[1]):
-                    self.excess_count += np.sum(np.maximum(self.occupancy[t,f,:] - self.facility_capacities[t, f], 0))
+                    self.excess_count += np.sum(np.maximum(self.occupancy[ti,f,:] - self.facility_capacities[t, f], 0))
                     progress.update()
 
             progress.close()
@@ -106,6 +106,10 @@ class CapacityLikelihood(sampler.Likelihood):
     def evaluate(self, change):
         activity_index, facility_index = change[0], change[1]
 
+        if facility_index == self.activity_facilities[activity_index]:
+            self.cache = (activity_index, facility_index, self.excess_count, self.likelihood)
+            return self.likelihood, self.likelihood
+
         old_capacity_limit = self.facility_capacities[self.activity_types[activity_index], self.activity_facilities[activity_index]]
         old_occupancy_counts_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], self.activity_facilities[activity_index], self.activity_time_indices[activity_index]]
         old_occupancy_counts_after = old_occupancy_counts_before - 1
@@ -114,7 +118,7 @@ class CapacityLikelihood(sampler.Likelihood):
         new_occupancy_counts_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index, self.activity_time_indices[activity_index]]
         new_occupancy_counts_after = new_occupancy_counts_before + 1
 
-        excess_count = self.excess_count
+        excess_count = float(self.excess_count)
 
         excess_count -= np.sum(np.maximum(old_occupancy_counts_before - old_capacity_limit, 0))
         excess_count -= np.sum(np.maximum(new_occupancy_counts_before - new_capacity_limit, 0))
@@ -134,7 +138,6 @@ class CapacityLikelihood(sampler.Likelihood):
 
         self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], self.activity_facilities[activity_index], self.activity_time_indices[activity_index]] -= 1
         self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index, self.activity_time_indices[activity_index]] += 1
-        self.activity_facilities[activity_index] = facility_index
         self.excess_count = excess_count
         self.likelihood = likelihood
 
@@ -149,6 +152,23 @@ class CapacityLikelihood(sampler.Likelihood):
 
     def get_excess_count(self):
         return self.excess_count
+
+    def compute_validation_likelihood(self):
+        occupancy = np.zeros((len(self.relevant_activity_types), self.facility_capacities.shape[1], self.bins), dtype = np.int)
+
+        for t, ti in self.relevant_activity_types.items():
+            type_indices = np.where(self.activity_types == t)[0]
+
+            for i in type_indices:
+                occupancy[ti, self.activity_facilities[i], self.activity_time_indices[i]] += 1
+
+        excess_count = 0
+
+        for t, ti in self.relevant_activity_types.items():
+            for f in range(self.facility_capacities.shape[1]):
+                excess_count += np.sum(np.maximum(occupancy[ti,f,:] - self.facility_capacities[t, f], 0))
+
+        return np.log(self.alpha) - self.alpha * excess_count
 
 class DistanceLikelihood(sampler.Likelihood):
     def __init__(self, relevant_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, reference_means, reference_variances, relevant_modes = ["car", "pt", "bike", "walk"]):
@@ -242,8 +262,6 @@ class DistanceLikelihood(sampler.Likelihood):
         activity_index, facility_index, change_means, change_distances, likelihood = self.cache
 
         self.likelihood = likelihood
-
-        self.activity_facilities[activity_index] = facility_index
         self.means = change_means
 
         for activity_index, distance in change_distances:
@@ -260,14 +278,14 @@ class DistanceLikelihood(sampler.Likelihood):
     def get_means(self):
         return self.means
 
-    def compute_plain_likelihood(self):
-        distances = np.zeros((len(activity_facilities)), dtype = np.float)
+    def compute_validation_likelihood(self):
+        distances = np.zeros((len(self.activity_facilities)), dtype = np.float)
 
         from_coordinates = self.facility_coordinates[self.activity_facilities[self.relevant_activity_indices - 1]]
         to_coordinates = self.facility_coordinates[self.activity_facilities[self.relevant_activity_indices]]
 
         distances[self.relevant_activity_indices] = np.sqrt(np.sum((from_coordinates - to_coordinates)**2, axis = 1)) / 1000.0
         means = { c : np.mean(distances[self.relevant_activity_mask_by_category[c]]) for c in self.categories }
-        likelihood = sum([-(means[c] - self.references[c])**2 / self.sigma[c]  for c in self.categories])
+        likelihood = sum([-(means[c] - self.references[c])**2 / (2 * self.sigma2[c]) - 0.5 * np.log(2 * self.sigma2[c] * np.pi) for c in self.categories])
 
         return likelihood
