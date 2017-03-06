@@ -11,25 +11,9 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 from tqdm import tqdm
+import config
 
-config = dict(
-    cache_path = "cache",
-    output_interval = int(1e4),
-    measurement_interval = int(1e3),
-    total_iterations = int(1e6),
-    validation_interval = None,
-    relevant_modes = ["car", "pt", "bike", "walk"],
-    relevant_activity_types = ["shop", "leisure", "escort_kids", "escort_other", "remote_work"],
-    source_facilities_path = "data/facilities.xml.gz",
-    source_population_path = "data/population.xml.gz",
-    target_population_path = "output/population.xml.gz",
-    capacity_scaling_factor = 0.01,
-    distribution_mode = "random",
-    minimum_time = 0.0,
-    maximum_time = 24.0 * 3600,
-    time_bins = 24 * 12,
-    capacity_likelihood_alpha = 1e-3
-)
+config = config.config
 
 if len(sys.argv) > 1:
     config["output_interval"] = int(sys.argv[1])
@@ -59,9 +43,11 @@ for t in relevant_activity_types:
     elif config["distribution_mode"] == "singleton":
         activity_facilities[type_mask] = type_indices[0]
 
-census_distances = reference.get_crowfly_distances()
-proposal_distribution = proposals.DistanceSamplingProposal(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances)
-#proposal_distribution = proposals.RandomProposalDistribution(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes)
+if config["proposal"] == "advanced":
+    census_distances = reference.get_crowfly_distances()
+    proposal_distribution = proposals.DistanceSamplingProposal(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances)
+else:
+    proposal_distribution = proposals.RandomProposalDistribution(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes)
 
 reference_means, reference_variances = reference.get_by_purpose()
 reference_means, reference_variances = reference.get_by_mode_and_purpose()
@@ -154,6 +140,9 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
         plt.grid()
         plt.savefig("output/stats.png")
         plt.close()
+
+        with open(config["target_population_path"] + ".p", "wb+") as f:
+            pickle.dump(activity_facilities, f)
 
         writer = PopulationWriter(config)
         writer.write(
