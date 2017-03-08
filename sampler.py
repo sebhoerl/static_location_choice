@@ -18,7 +18,8 @@ class ProposalDistribution:
         raise NotImplementedError()
 
 class Sampler:
-    def __init__(self, likelihood, proposal_distribution, activity_facilities):
+    def __init__(self, config, likelihood, proposal_distribution, activity_facilities):
+        self.sampling_factor = config["sampling_factor"]
         self.likelihood = likelihood
         self.proposal_distribution = proposal_distribution
         self.activity_facilities = activity_facilities
@@ -33,7 +34,7 @@ class Sampler:
 
         a = a1 + a2
 
-        if a >= 0:# or np.log(np.random.random()) <= a:
+        if a >= 0 or np.log(np.random.random()) <= self.sampling_factor * a:
             self.likelihood.accept()
             self.activity_facilities[change[0]] = change[1]
             return True

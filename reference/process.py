@@ -4,7 +4,7 @@ import numpy as np
 import itertools
 import pickle
 
-purposes = ["remote_work", "leisure", "shop", "escort_kids", "escort_other"] + ["home", "work", "education"]
+purposes = ["remote_work", "leisure", "shop", "escort_kids", "escort_other"] + ["work", "education", "remote_home"]
 modes = ["car", "pt", "bike", "walk"]
 
 purpose_map = {
@@ -25,7 +25,7 @@ purpose_map = {
 
 purpose_map["2"] = "work"
 purpose_map["3"] = "education"
-purpose_map["11"] = "home"
+purpose_map["11"] = "remote_home"
 
 mode_map = {
     '-99' : None,

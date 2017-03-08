@@ -96,7 +96,7 @@ class CapacityLikelihood(sampler.Likelihood):
 
             progress.close()
 
-            utils.save_cache("capacity_likelihood", (self.occupancy, self.excess_count), self.config)
+            #utils.save_cache("capacity_likelihood", (self.occupancy, self.excess_count), self.config)
         else:
             print("Loaded occupancy matrix from cache")
             self.occupancy, self.excess_count = cache
@@ -171,7 +171,7 @@ class CapacityLikelihood(sampler.Likelihood):
         return np.log(self.alpha) - self.alpha * excess_count
 
 class DistanceLikelihood(sampler.Likelihood):
-    def __init__(self, relevant_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, reference_means, reference_variances, relevant_modes = ["car", "pt", "bike", "walk"]):
+    def __init__(self, config, relevant_activity_types, activity_facilities, activity_modes, activity_types, activity_start_times, facility_coordinates, reference_means, reference_variances, relevant_modes = ["car", "pt", "bike", "walk"]):
         self.use_modes = isinstance(list(reference_means.keys())[0], tuple)
 
         self.relevant_activity_types = [constant.ACTIVITY_TYPES_TO_INDEX[a] for a in relevant_activity_types]
@@ -179,8 +179,14 @@ class DistanceLikelihood(sampler.Likelihood):
 
         self.activity_facilities = activity_facilities
         self.facility_coordinates = facility_coordinates
-        self.activity_types = activity_types
+        self.activity_types = np.copy(activity_types)
         self.activity_modes = activity_modes
+
+        home = constant.ACTIVITY_TYPES_TO_INDEX["home"]
+
+        for i in range(1, len(activity_types)):
+            if activity_types[i] == home and activity_types[i-1] in self.relevant_activity_types and activity_start_times[i] > -1:
+                self.activity_types[i] = activity_types[i-1]
 
         if self.use_modes:
             self.categories = list(itertools.product(self.relevant_modes, self.relevant_activity_types))
@@ -188,9 +194,12 @@ class DistanceLikelihood(sampler.Likelihood):
             self.sigma2 = { (constant.MODES_TO_INDEX[m], constant.ACTIVITY_TYPES_TO_INDEX[t]) : v for (m,t), v in reference_variances.items() }
 
             self.relevant_activity_mask_by_category = {
-                (m, t) : ( (activity_modes == m) & (activity_types == t) )
+                (m, t) : ( (activity_modes == m) & (activity_types == t) & (activity_start_times > -1) )
                 for m, t in self.categories
             }
+
+            for o, v in config["override_sigma"].items():
+                self.sigma2[(constant.MODES_TO_INDEX[o[0]], constant.ACTIVITY_TYPES_TO_INDEX[o[1]])] = v
         else:
             self.categories = self.relevant_activity_types
             self.references = { constant.ACTIVITY_TYPES_TO_INDEX[t] : v for t, v in reference_means.items() }
@@ -201,6 +210,8 @@ class DistanceLikelihood(sampler.Likelihood):
                 for t in self.categories
             }
 
+            for o, v in config["override_sigma"].items():
+                self.sigma2[constant.ACTIVITY_TYPES_TO_INDEX[o[1]]] = v
 
         self.relevant_activity_mask = np.zeros((len(activity_types)), dtype = np.bool)
         for t in self.relevant_activity_mask_by_category.values(): self.relevant_activity_mask |= t

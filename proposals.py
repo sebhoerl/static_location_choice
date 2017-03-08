@@ -3,10 +3,18 @@ import sampler, constant
 from sklearn.neighbors import KDTree
 
 class DistanceSamplingProposal(sampler.ProposalDistribution):
-    def __init__(self, relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances):
-        self.census_distances, _, self.census_mode_distances = census_distances
+    def __init__(self, config, relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances):
+        census_distances, _, census_mode_distances = census_distances
+
+        self.census_distances = { (constant.MODES_TO_INDEX[c[0]], constant.ACTIVITY_TYPES_TO_INDEX[c[1]]) : np.array(d, dtype=np.float) * 1e3 for c, d in census_distances.items() }
+        for m, d in census_mode_distances.items(): self.census_distances[constant.MODES_TO_INDEX[m]] = np.array(d, dtype=np.float) * 1e3
+
+        self.census_distance_counts = { k : len(d) for k, d in self.census_distances.items() }
+
         self.facility_coordinates = facility_coordinates
         self.activity_facilities = activity_facilities
+
+        self.distance_based_proposal_candidate_set_size = config["distance_based_proposal_candidate_set_size"]
 
         self.activity_types = activity_types
         self.activity_modes = activity_modes
@@ -50,7 +58,9 @@ class DistanceSamplingProposal(sampler.ProposalDistribution):
             return [center1 + (center2 - center1) * f]
 
     def sample(self):
-        activity_index = np.random.choice(self.relevant_indices)
+        choice_index = np.random.randint(len(self.relevant_indices))
+        activity_index = self.relevant_indices[choice_index]
+        #activity_index = np.random.choice(self.relevant_indices)
         candidate_indices = self.facility_type_indices[self.activity_types[activity_index]]
 
         current_type = self.activity_types[activity_index]
@@ -59,21 +69,33 @@ class DistanceSamplingProposal(sampler.ProposalDistribution):
         following_type = self.activity_types[activity_index + 1]
         following_mode = self.activity_modes[activity_index + 1]
 
+        if following_type == constant.ACTIVITY_TYPES_TO_INDEX["home"]:
+            following_type = current_type
+
         preceeding_coord = self.facility_coordinates[self.activity_facilities[activity_index - 1]]
         following_coord = self.facility_coordinates[self.activity_facilities[activity_index + 1]]
 
-        preceeding_category = (constant.MODES[current_mode], constant.ACTIVITY_TYPES[current_type])
-        following_category = (constant.MODES[following_mode], constant.ACTIVITY_TYPES[following_type])
+        preceeding_category = (current_mode, current_type)
+        following_category = (following_mode, following_type)
 
-        preceeding_distance = np.random.choice(self.census_distances[preceeding_category]) if preceeding_category in self.census_distances else np.random.choice(self.census_mode_distances[constant.MODES[current_mode]])
-        following_distance = np.random.choice(self.census_distances[following_category]) if following_category in self.census_distances else np.random.choice(self.census_mode_distances[constant.MODES[following_mode]])
+        if not preceeding_category in self.census_distances: preceeding_category = current_mode
+        if not following_category in self.census_distances: following_category = following_mode
 
-        coords = self._get_coords(preceeding_coord, following_coord, preceeding_distance * 1000.0, following_distance * 1000.0)
+        preceeding_choice_index = np.random.randint(self.census_distance_counts[preceeding_category])
+        following_choice_index = np.random.randint(self.census_distance_counts[following_category])
+
+        preceeding_distance = self.census_distances[preceeding_category][preceeding_choice_index]
+        following_distance = self.census_distances[following_category][following_choice_index]
+
+        #preceeding_distance = np.random.choice(self.census_distances[preceeding_category]) if preceeding_category in self.census_distances else np.random.choice(self.census_mode_distances[constant.MODES[current_mode]])
+        #following_distance = np.random.choice(self.census_distances[following_category]) if following_category in self.census_distances else np.random.choice(self.census_mode_distances[constant.MODES[following_mode]])
+
+        coords = self._get_coords(preceeding_coord, following_coord, preceeding_distance, following_distance)
 
         #indices = [candidate_indices[np.argmin(np.sum((self.facility_coordinates[candidate_indices] - coord)**2, axis = 1))] for coord in coords]
         #facility_index = np.random.choice(indices)
 
-        facility_index = np.random.choice(candidate_indices[self.trees[current_type].query(coords, return_distance = False)].flatten())
+        facility_index = np.random.choice(candidate_indices[self.trees[current_type].query(coords, k = self.distance_based_proposal_candidate_set_size, return_distance = False)].flatten())
         return (activity_index, facility_index), 0.0, 0.0
 
 class RandomProposalDistribution(sampler.ProposalDistribution):

@@ -47,14 +47,14 @@ for t in relevant_activity_types:
 
 if config["proposal"] == "advanced":
     census_distances = reference.get_crowfly_distances()
-    proposal_distribution = proposals.DistanceSamplingProposal(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances)
+    proposal_distribution = proposals.DistanceSamplingProposal(config, relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances)
 else:
     proposal_distribution = proposals.RandomProposalDistribution(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes)
 
 reference_means, reference_variances = reference.get_by_purpose()
 reference_means, reference_variances = reference.get_by_mode_and_purpose()
 
-distance_likelihood = likelihoods.DistanceLikelihood(relevant_activity_types + additional_activity_types, activity_facilities, activity_modes, activity_types, facility_coordinates, reference_means, reference_variances, relevant_modes)
+distance_likelihood = likelihoods.DistanceLikelihood(config, relevant_activity_types + additional_activity_types, activity_facilities, activity_modes, activity_types, activity_start_times, facility_coordinates, reference_means, reference_variances, relevant_modes)
 distance_likelihood.initialize()
 
 min_time, max_time, bins = config["minimum_time"], config["maximum_time"], config["time_bins"]
@@ -72,7 +72,7 @@ excess = []
 
 distances = { c : [] for c in distance_likelihood.categories }
 
-sampler = sampler.Sampler(joint_likelihood, proposal_distribution, activity_facilities)
+sampler = sampler.Sampler(config, joint_likelihood, proposal_distribution, activity_facilities)
 for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations"):
     accepted = sampler.run_sample()
     if accepted: acceptance_count += 1
@@ -108,7 +108,7 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
                 for t, color in zip(relevant_activity_types + additional_activity_types, colors):
                     t = constant.ACTIVITY_TYPES_TO_INDEX[t]
                     plt.plot(distances[(m,t)], label = constant.ACTIVITY_TYPES[t], color = color)
-                    plt.plot([0, len(distances[(m,t)])], [reference_means[(constant.MODES[m], constant.ACTIVITY_TYPES[t])], reference_means[(constant.MODES[m], constant.ACTIVITY_TYPES[t])]], "--", color = color)
+                    plt.plot([0, len(distances[(m,t)]) - 1], [reference_means[(constant.MODES[m], constant.ACTIVITY_TYPES[t])], reference_means[(constant.MODES[m], constant.ACTIVITY_TYPES[t])]], "--", color = color)
                 plt.title(constant.MODES[m])
                 plt.grid()
                 plt.legend()
@@ -119,7 +119,7 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
             for t, color in zip(relevant_activity_types + additional_activity_types, colors):
                 t = constant.ACTIVITY_TYPES_TO_INDEX[t]
                 plt.plot(distances[t], label = constant.ACTIVITY_TYPES[t], color = color)
-                plt.plot([0, len(distances[t])], [reference_means[constant.ACTIVITY_TYPES[t]], reference_means[constant.ACTIVITY_TYPES[t]]], "--", color = color)
+                plt.plot([0, len(distances[t]) - 1], [reference_means[constant.ACTIVITY_TYPES[t]], reference_means[constant.ACTIVITY_TYPES[t]]], "--", color = color)
             plt.legend()
             plt.grid()
             plt.savefig("output/distances.png")
@@ -144,6 +144,7 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
         plt.savefig("output/stats.png")
         plt.close()
 
+    if config["output_population_interval"] is not None and i % config["output_population_interval"] == 0 and i > 0:
         with open(config["target_population_path"] + ".p", "wb+") as f:
             pickle.dump(activity_facilities, f)
 

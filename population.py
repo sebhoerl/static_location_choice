@@ -112,5 +112,5 @@ class PopulationWriter:
                         activity_index += 1
                         progress.update()
 
-                fout.write(line)
+                    fout.write(line)
         progress.close()
