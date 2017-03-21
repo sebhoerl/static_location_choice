@@ -1,5 +1,6 @@
 config = dict(
     cache_path = "cache",
+    use_population_cache = True,
     sampling_factor = 1e12,
     output_interval = int(1e5),
     measurement_interval = int(1e3),
@@ -21,6 +22,6 @@ config = dict(
     capacity_likelihood_alpha = 1e-3,
     distance_based_proposal_candidate_set_size = 30,
     override_sigma = {
-        # ("walk", "leisure") : 1e-3
+        #("walk", "*") : 1e-3
     }
 )
