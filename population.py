@@ -49,7 +49,10 @@ class PopulationReader(xml.sax.ContentHandler):
         if name == "plan": self.plan_selected = False
 
     def read(self, path, facility_id_to_index):
-        cache = utils.load_cache("population", self.config)
+        cache = None
+
+        if self.config["use_population_cache"]:
+            cache = utils.load_cache("population", self.config)
 
         if cache is None:
             self.progress = tqdm(desc = "Loading Population ...")

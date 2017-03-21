@@ -199,7 +199,11 @@ class DistanceLikelihood(sampler.Likelihood):
             }
 
             for o, v in config["override_sigma"].items():
-                self.sigma2[(constant.MODES_TO_INDEX[o[0]], constant.ACTIVITY_TYPES_TO_INDEX[o[1]])] = v
+                for a, ai in constant.ACTIVITY_TYPES_TO_INDEX.items():
+                    for m, mi in constant.MODES_TO_INDEX.items():
+                        if (m == o[0] or o[0] == "*") and (a == o[1] or o[1] == "*"):
+                            print("Setting (%s,%s) to %f" % (m,a,v))
+                            self.sigma2[(mi, ai)] = v
         else:
             self.categories = self.relevant_activity_types
             self.references = { constant.ACTIVITY_TYPES_TO_INDEX[t] : v for t, v in reference_means.items() }
