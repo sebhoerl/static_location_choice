@@ -4,6 +4,7 @@ import constant, sampler, proposals, likelihoods
 import reference
 import pickle
 import sys
+import json
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -12,13 +13,12 @@ from matplotlib.pyplot import cm
 
 import numpy as np
 from tqdm import tqdm
-import config
 
-config = config.config
-
-if len(sys.argv) > 1:
-    config["output_interval"] = int(sys.argv[1])
-    config["total_iterations"] = int(sys.argv[2])
+if len(sys.argv) < 2:
+    print("No config")
+    exit()
+else:
+    config = json.load(open(sys.argv[1]))
 
 facility_ids, facility_coordinates, facility_capacities = FacilityReader(config).read(config["source_facilities_path"])
 facility_id_to_index = { facility_id : index for index, facility_id in enumerate(facility_ids) }

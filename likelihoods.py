@@ -198,12 +198,25 @@ class DistanceLikelihood(sampler.Likelihood):
                 for m, t in self.categories
             }
 
-            for o, v in config["override_sigma"].items():
-                for a, ai in constant.ACTIVITY_TYPES_TO_INDEX.items():
-                    for m, mi in constant.MODES_TO_INDEX.items():
-                        if (m == o[0] or o[0] == "*") and (a == o[1] or o[1] == "*"):
-                            print("Setting (%s,%s) to %f" % (m,a,v))
-                            self.sigma2[(mi, ai)] = v
+            for entry in config["override_sigma"]:
+                m, a, value = entry
+
+                if m == "*" and a == "*":
+                    for ai in range(len(constant.ACTIVITY_TYPES)):
+                        for mi in range(len(constant.MODES)):
+                            self.sigma2[(mi, ai)] = value
+                            print("Setting (%s, %s) to %f" % (constant.MODES[mi], constant.ACTIVITY_TYPES[ai], value))
+                elif m == "*":
+                    for mi in range(len(constant.MODES)):
+                        self.sigma2[(mi, constant.ACTIVITY_TYPES_TO_INDEX[a])] = value
+                        print("Setting (%s, %s) to %f" % (constant.MODES[mi], a, value))
+                elif a == "*":
+                    for ai in range(len(constant.ACTIVITY_TYPES)):
+                        self.sigma2[(constant.MODES_TO_INDEX[m],ai)] = value
+                        print("Setting (%s, %s) to %f" % (m, constant.ACTIVITY_TYPES[ai], value))
+                else:
+                    self.sigma2[(constant.MODES_TO_INDEX[m], constant.ACTIVITY_TYPES_TO_INDEX[a])] = value
+                    print("Setting (%s, %s) to %f" % (m, a, value))
         else:
             self.categories = self.relevant_activity_types
             self.references = { constant.ACTIVITY_TYPES_TO_INDEX[t] : v for t, v in reference_means.items() }
