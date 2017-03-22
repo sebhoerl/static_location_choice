@@ -95,7 +95,7 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
             distances[c].append( mean_distances[c] ) # - reference_means[t] )
 
     if i % config["output_interval"] == 0 and i > 0:
-        with open("output/plotdata.p", "wb+") as f:
+        with open("%s/plotdata.p" % config["output_path"], "wb+") as f:
             pickle.dump((distances, excess, likelihood, acceptance), f)
 
         colors = cm.rainbow(np.linspace(0,1,len(relevant_activity_types + additional_activity_types)))
@@ -112,7 +112,7 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
                 plt.title(constant.MODES[m])
                 plt.grid()
                 plt.legend()
-                plt.savefig("output/%s.png" % constant.MODES[m])
+                plt.savefig("%s/%s.png" % (config["output_path"], constant.MODES[m]))
                 plt.close()
         else:
             plt.figure(figsize = (12,8))
@@ -122,14 +122,14 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
                 plt.plot([0, len(distances[t]) - 1], [reference_means[constant.ACTIVITY_TYPES[t]], reference_means[constant.ACTIVITY_TYPES[t]]], "--", color = color)
             plt.legend()
             plt.grid()
-            plt.savefig("output/distances.png")
+            plt.savefig("%s/distances.png" % config["output_path"])
             plt.close()
 
         plt.figure(figsize = (12,8))
         plt.plot(excess, label = "Excess Occupancy")
         plt.grid()
         plt.legend()
-        plt.savefig("output/occupancy.png")
+        plt.savefig("%s/occupancy.png" % config["output_path"])
         plt.close()
 
         plt.figure(figsize = (12,8))
@@ -141,15 +141,15 @@ for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations
         plt.plot(acceptance, label = "Acceptance")
         plt.legend()
         plt.grid()
-        plt.savefig("output/stats.png")
+        plt.savefig("%s/stats.png" % config["output_path"])
         plt.close()
 
     if config["output_population_interval"] is not None and i % config["output_population_interval"] == 0 and i > 0:
-        with open(config["target_population_path"] + ".p", "wb+") as f:
+        with open("%s/population.p" % config["output_path"], "wb+") as f:
             pickle.dump(activity_facilities, f)
 
         writer = PopulationWriter(config)
         writer.write(
             config["source_population_path"],
-            config["target_population_path"],
+            "%s/population.xml.gz" % config["output_path"],
             activity_facilities, facility_ids)

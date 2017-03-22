@@ -12,7 +12,7 @@
     "additional_activity_types" : ["work", "education"],
     "source_facilities_path" : "data/facilities.xml.gz",
     "source_population_path" : "data/population.xml.gz",
-    "target_population_path" : "output/population.xml.gz",
+    "output_path" : "output",
     "capacity_scaling_factor" : 0.01,
     "distribution_mode" : "random",
     "minimum_time" : 0.0,
