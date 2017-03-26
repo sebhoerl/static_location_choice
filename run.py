@@ -10,6 +10,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
+from sklearn.neighbors import KDTree
 
 import numpy as np
 from tqdm import tqdm
@@ -36,7 +37,7 @@ facility_capacities = facility_capacities.astype(np.float) * config["capacity_sc
 facility_capacities = np.ceil(facility_capacities)
 
 # Random initialization
-for t in relevant_activity_types:
+for t in tqdm(relevant_activity_types, desc = "Initialization"):
     type_indices = np.where(facility_capacities[constant.ACTIVITY_TYPES_TO_INDEX[t],:] > 0)[0]
     type_mask = activity_types == constant.ACTIVITY_TYPES_TO_INDEX[t]
 
@@ -44,6 +45,14 @@ for t in relevant_activity_types:
         activity_facilities[type_mask] = np.random.choice(type_indices, np.sum(type_mask))
     elif config["distribution_mode"] == "singleton":
         activity_facilities[type_mask] = type_indices[0]
+    elif config["distribution_mode"] == "close":
+        facility_type_masks = [facility_capacities[i] > 0 for i in range(len(constant.ACTIVITY_TYPES))]
+        facility_type_indices = [np.where(m)[0] for m in facility_type_masks]
+        trees = [KDTree(facility_coordinates[facility_type_indices[t]]) for t in range(len(constant.ACTIVITY_TYPES))]
+
+        for i in np.where(type_mask)[0]:
+            index = trees[activity_types[i]].query(facility_coordinates[activity_facilities[i]].reshape(1, -1), k = 1, return_distance = False)
+            activity_facilities[i] = facility_type_indices[constant.ACTIVITY_TYPES_TO_INDEX[t]][index]
 
 if config["proposal"] == "advanced":
     census_distances = reference.get_crowfly_distances()

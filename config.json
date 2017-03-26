@@ -2,11 +2,11 @@
     "cache_path": "cache",
     "use_population_cache" : true,
     "sampling_factor" : 1e12,
-    "output_interval" : 1e5,
+    "output_interval" : 5e4,
     "measurement_interval" : 1e3,
     "total_iterations" : 1e6,
     "validation_interval" : null,
-    "output_population_interval" : 1e4,
+    "output_population_interval" : 1e6,
     "relevant_modes" : ["car", "pt", "bike", "walk"],
     "relevant_activity_types" : ["shop", "leisure", "escort_kids", "escort_other", "remote_work"],
     "additional_activity_types" : ["work", "education"],
@@ -14,14 +14,12 @@
     "source_population_path" : "data/population.xml.gz",
     "output_path" : "output",
     "capacity_scaling_factor" : 0.01,
-    "distribution_mode" : "random",
+    "distribution_mode" : "close",
     "minimum_time" : 0.0,
     "maximum_time" : 62400,
     "time_bins" : 288,
-    "proposal" : "advanced",
+    "proposal" : "random",
     "capacity_likelihood_alpha" : 1e-3,
     "distance_based_proposal_candidate_set_size" : 30,
-    "override_sigma" : [
-        ["*", "*", 1e-3]
-    ]
+    "override_sigma" : []
 }
