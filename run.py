@@ -46,7 +46,9 @@ for t in tqdm(relevant_activity_types, desc = "Initialization"):
     type_indices = np.where(facility_capacities[constant.ACTIVITY_TYPES_TO_INDEX[t],:] > 0)[0]
     type_mask = activity_types == constant.ACTIVITY_TYPES_TO_INDEX[t]
 
-    if config["distribution_mode"] == "random":
+    if config["distribution_mode"] is None:
+        break
+    elif config["distribution_mode"] == "random":
         activity_facilities[type_mask] = np.random.choice(type_indices, np.sum(type_mask))
     elif config["distribution_mode"] == "singleton":
         activity_facilities[type_mask] = type_indices[0]
@@ -74,8 +76,8 @@ if config["proposal"] == "advanced":
 else:
     proposal_distribution = proposals.RandomProposalDistribution(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes)
 
-reference_means, reference_variances = reference.get_by_purpose()
-reference_means, reference_variances = reference.get_by_mode_and_purpose()
+reference_means, reference_variances = reference.get_by_purpose(distance = "crowfly")
+reference_means, reference_variances = reference.get_by_mode_and_purpose(distance = "crowfly")
 
 distance_likelihood = likelihoods.DistanceLikelihood(config, relevant_activity_types + additional_activity_types, activity_facilities, activity_modes, activity_types, activity_start_times, facility_coordinates, reference_means, reference_variances, relevant_modes)
 distance_likelihood.initialize()
@@ -96,7 +98,7 @@ excess = []
 distances = { c : [] for c in distance_likelihood.categories }
 
 sampler = sampler.Sampler(config, joint_likelihood, proposal_distribution, activity_facilities)
-for i in tqdm(range(int(config["total_iterations"])), desc = "Sampling locations"):
+for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locations"):
     accepted = sampler.run_sample()
     if accepted: acceptance_count += 1
 

@@ -117,7 +117,14 @@ class RandomProposalDistribution(sampler.ProposalDistribution):
         self.facility_type_indices = [np.where(m)[0] for m in self.facility_type_masks]
 
     def sample(self):
-        activity_index = np.random.choice(self.relevant_indices)
+        index = np.random.randint(len(self.relevant_indices))
+        activity_index = self.relevant_indices[index]
+        #activity_index = np.random.choice(self.relevant_indices)
+
         activity_type = self.activity_types[activity_index]
-        facility_index = np.random.choice(self.facility_type_indices[activity_type])
+
+        index = np.random.randint(len(self.facility_type_indices[activity_type]))
+        facility_index = self.facility_type_indices[activity_type][index]
+        #facility_index = np.random.choice(self.facility_type_indices[activity_type])
+
         return (activity_index, facility_index), 0.0, 0.0

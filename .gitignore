@@ -2,7 +2,8 @@
 *.pyo
 __pycache__/
 cache/*
-output
+output*
 data
 reference/Sebastian.csv
 *.cprof
+validation
