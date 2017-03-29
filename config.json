@@ -14,11 +14,11 @@
     "source_population_path" : "data/population.xml.gz",
     "output_path" : "output",
     "capacity_scaling_factor" : 0.01,
-    "distribution_mode" : "close",
+    "distribution_mode" : "mixed",
     "minimum_time" : 0.0,
     "maximum_time" : 62400,
     "time_bins" : 288,
-    "proposal" : "random",
+    "proposal" : "advanced",
     "capacity_likelihood_alpha" : 1e-3,
     "distance_based_proposal_candidate_set_size" : 30,
     "override_sigma" : []
