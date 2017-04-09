@@ -78,17 +78,22 @@ else:
 
 reference_means, reference_variances = reference.get_by_purpose(distance = "crowfly")
 reference_means, reference_variances = reference.get_by_mode_and_purpose(distance = "crowfly")
+reference_data = reference.get_crowfly_distances()
 
 distance_likelihood = likelihoods.DistanceLikelihood(config, relevant_activity_types + additional_activity_types, activity_facilities, activity_modes, activity_types, activity_start_times, facility_coordinates, reference_means, reference_variances, relevant_modes)
 distance_likelihood.initialize()
 
-min_time, max_time, bins = config["minimum_time"], config["maximum_time"], config["time_bins"]
-capacity_likelihood = likelihoods.CapacityLikelihood(config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_end_times, activity_start_times, min_time, max_time, bins)
-capacity_likelihood.initialize()
+quantile_likelihood = likelihoods.QuantileLikelihood(config, relevant_activity_types + additional_activity_types, activity_facilities, activity_modes, activity_types, activity_start_times, facility_coordinates, reference_data, relevant_modes)
+quantile_likelihood.initialize()
+
+#min_time, max_time, bins = config["minimum_time"], config["maximum_time"], config["time_bins"]
+#capacity_likelihood = likelihoods.CapacityLikelihood(config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_end_times, activity_start_times, min_time, max_time, bins)
+#capacity_likelihood.initialize()
 
 joint_likelihood = likelihoods.JointLikelihood()
-joint_likelihood.add_likelihood(distance_likelihood, 1.0)
-joint_likelihood.add_likelihood(capacity_likelihood, 1.0)
+#joint_likelihood.add_likelihood(distance_likelihood, 1.0)
+#joint_likelihood.add_likelihood(capacity_likelihood, 1.0)
+joint_likelihood.add_likelihood(quantile_likelihood, 1.0)
 
 acceptance_count = 0
 acceptance = []
@@ -113,20 +118,42 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
         acceptance_count = 0
 
         likelihood.append(joint_likelihood.get_likelihood())
-        excess.append(capacity_likelihood.get_excess_count())
+        #excess.append(capacity_likelihood.get_excess_count())
 
         for c in distance_likelihood.categories:
             mean_distances = distance_likelihood.get_means()
             distances[c].append( mean_distances[c] ) # - reference_means[t] )
 
-    if i % config["output_interval"] == 0 and i > 0:
+    if i % config["output_interval"] == 0:# and i > 0:
         with open("%s/plotdata.p" % config["output_path"], "wb+") as f:
             pickle.dump((distances, excess, likelihood, acceptance), f)
 
         colors = cm.rainbow(np.linspace(0,1,len(relevant_activity_types + additional_activity_types)))
         #colors = ["r", "g", "b", "c", "m", "y", "k", (0.5, 0.5, 0.5)]
 
-        if distance_likelihood.use_modes:
+        if True:
+            for m in relevant_modes:
+                mi = constant.MODES_TO_INDEX[m]
+                plt.figure(figsize = (12,8))
+
+                for t, color in zip(relevant_activity_types + additional_activity_types, colors):
+                    ti = constant.ACTIVITY_TYPES_TO_INDEX[t]
+                    c = (mi, ti)
+
+                    quantiles = quantile_likelihood.quantiles[c]
+                    plt.plot(np.log10(quantiles), np.cumsum(quantile_likelihood.reference_counts[c] / quantile_likelihood.total_reference_counts[c]), color = color, linestyle = '--')
+                    plt.plot(np.log10(quantiles), np.cumsum(quantile_likelihood.population_counts[c] / quantile_likelihood.total_population_counts[c]), color = color, label = t)
+
+                plt.title("%s, %d Iterations" % (m, i))
+                plt.grid()
+                plt.ylim([0, 1.2])
+                plt.legend(loc = "lower right")
+                plt.xlabel("log(Distance)")
+                plt.ylabel("P(Distance <= Q)")
+                plt.savefig("%s/dists/%s_%d.png" % (config["output_path"], m, i))
+                plt.close()
+
+        if False: #distance_likelihood.use_modes:
             for m in relevant_modes:
                 m = constant.MODES_TO_INDEX[m]
                 plt.figure(figsize = (12,8))
@@ -139,7 +166,7 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
                 plt.legend()
                 plt.savefig("%s/%s.png" % (config["output_path"], constant.MODES[m]))
                 plt.close()
-        else:
+        elif False: #:
             plt.figure(figsize = (12,8))
             for t, color in zip(relevant_activity_types + additional_activity_types, colors):
                 t = constant.ACTIVITY_TYPES_TO_INDEX[t]
@@ -150,12 +177,13 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
             plt.savefig("%s/distances.png" % config["output_path"])
             plt.close()
 
-        plt.figure(figsize = (12,8))
-        plt.plot(excess, label = "Excess Occupancy")
-        plt.grid()
-        plt.legend()
-        plt.savefig("%s/occupancy.png" % config["output_path"])
-        plt.close()
+        if False:
+            plt.figure(figsize = (12,8))
+            plt.plot(excess, label = "Excess Occupancy")
+            plt.grid()
+            plt.legend()
+            plt.savefig("%s/occupancy.png" % config["output_path"])
+            plt.close()
 
         plt.figure(figsize = (12,8))
         plt.subplot(2,1,1)

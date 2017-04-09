@@ -170,6 +170,136 @@ class CapacityLikelihood(sampler.Likelihood):
 
         return np.log(self.alpha) - self.alpha * excess_count
 
+class QuantileLikelihood(sampler.Likelihood):
+    def __init__(self, config, relevant_activity_types, activity_facilities, activity_modes, activity_types, activity_start_times, facility_coordinates, reference_data, relevant_modes = ["car", "pt", "bike", "walk"]):
+        self.relevant_activity_types = [constant.ACTIVITY_TYPES_TO_INDEX[a] for a in relevant_activity_types]
+        self.relevant_modes = [constant.MODES_TO_INDEX[m] for m in relevant_modes]
+
+        self.activity_facilities = activity_facilities
+        self.facility_coordinates = facility_coordinates
+        self.activity_types = np.copy(activity_types)
+        self.activity_modes = activity_modes
+
+        home = constant.ACTIVITY_TYPES_TO_INDEX["home"]
+
+        for i in range(1, len(activity_types)):
+            if activity_types[i] == home and activity_types[i-1] in self.relevant_activity_types and activity_start_times[i] > -1:
+                self.activity_types[i] = activity_types[i-1]
+
+        self.categories = list(itertools.product(self.relevant_modes, self.relevant_activity_types))
+
+        self.relevant_activity_mask_by_category = {
+            (m, t) : ( (activity_modes == m) & (activity_types == t) & (activity_start_times > -1) )
+            for m, t in self.categories
+        }
+
+        self.relevant_activity_mask = np.zeros((len(activity_types)), dtype = np.bool)
+        for t in self.relevant_activity_mask_by_category.values(): self.relevant_activity_mask |= t
+
+        self.relevant_activity_indices = np.where(self.relevant_activity_mask)[0]
+        self.relevant_activity_indices_by_category = {
+            c : np.where(self.relevant_activity_mask_by_category[c])[0]
+            for c in self.categories
+        }
+
+        self.relevant_activity_indices_set = set(list(self.relevant_activity_indices))
+
+        self.probabilities = np.array([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]) / 100
+        self.reference_data = { (m,a) : np.array(reference_data[0][(constant.MODES[m], constant.ACTIVITY_TYPES[a])]) for m, a in self.categories }
+
+        self.distances = np.zeros((len(activity_facilities)), dtype = np.float)
+        self.bounds = {}
+        self.quantiles = {}
+        self.population_counts = {}
+        self.total_population_counts = {}
+        self.reference_counts = {}
+        self.total_reference_counts = {}
+
+        self.cache = None
+        self.likelihood = None
+
+    def initialize(self):
+        from_coordinates = self.facility_coordinates[self.activity_facilities[self.relevant_activity_indices - 1]]
+        to_coordinates = self.facility_coordinates[self.activity_facilities[self.relevant_activity_indices]]
+
+        self.distances[self.relevant_activity_indices] = np.sqrt(np.sum((from_coordinates - to_coordinates)**2, axis = 1)) / 1000.0
+        self.distances_by_category = { c : self.distances[self.relevant_activity_indices_by_category[c]] for c in self.categories }
+
+        self.quantiles = { c : np.percentile(self.reference_data[c], self.probabilities * 100) for c in self.categories }
+        self.bounds = { c : np.insert(self.quantiles[c], 0, -1) for c in self.categories}
+
+        self.reference_counts = { c :
+            np.array([np.sum((lower < self.reference_data[c]) & (self.reference_data[c] <= upper)) for lower, upper in zip(self.bounds[c][:-1], self.bounds[c][1:])])
+            for c in self.categories }
+
+        self.population_counts = { c :
+            np.array([np.sum((lower < self.distances_by_category[c]) & (self.distances_by_category[c] <= upper)) for lower, upper in zip(self.bounds[c][:-1], self.bounds[c][1:])])
+            for c in self.categories }
+
+        self.total_reference_counts = {
+            c: np.sum(self.reference_counts[c])
+            for c in self.categories }
+
+        self.total_population_counts = {
+            c: len(self.distances_by_category[c])
+            for c in self.categories }
+
+    def evaluate(self, change):
+        updated_counts = { c : np.copy(self.population_counts[c]) for c in self.categories }
+        distance_updates = []
+
+        change_coord = self.facility_coordinates[change[1]]
+
+        if change[0] in self.relevant_activity_indices_set:
+            leading_category = (self.activity_modes[change[0]], self.activity_types[change[0]])
+
+            leading_distance_current = self.distances[change[0]]
+            leading_distance_update = np.sqrt(np.sum((self.facility_coordinates[self.activity_facilities[change[0] - 1]] - change_coord)**2)) / 1000.0
+
+            current_quantile_index = np.sum(leading_distance_current > self.quantiles[leading_category])
+            updated_quantile_index = np.sum(leading_distance_update > self.quantiles[leading_category])
+
+            if current_quantile_index < len(self.probabilities): updated_counts[leading_category][current_quantile_index] -= 1
+            if updated_quantile_index < len(self.probabilities): updated_counts[leading_category][updated_quantile_index] += 1
+            distance_updates.append((change[0], leading_distance_update))
+
+        if (change[0] + 1) in self.relevant_activity_indices_set:
+            following_category = (self.activity_modes[change[0] + 1], self.activity_types[change[0] + 1])
+
+            following_distance_current = self.distances[change[0] + 1]
+            following_distance_update = np.sqrt(np.sum((self.facility_coordinates[self.activity_facilities[change[0] + 1]] - change_coord)**2)) / 1000.0
+
+            current_quantile_index = np.sum(following_distance_current > self.quantiles[following_category])
+            updated_quantile_index = np.sum(following_distance_update > self.quantiles[following_category])
+
+            if current_quantile_index < len(self.probabilities): updated_counts[following_category][current_quantile_index] -= 1
+            if updated_quantile_index < len(self.probabilities): updated_counts[following_category][updated_quantile_index] += 1
+            distance_updates.append((change[0] + 1, following_distance_update))
+
+        prior_likelihood = -np.max([-np.max(np.abs(self.population_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c])) for c in self.categories])
+        posterior_likelihood = -np.max([-np.max(np.abs(updated_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c])) for c in self.categories])
+
+        self.cache = ( change[0], change[1], updated_counts, distance_updates, posterior_likelihood )
+        return posterior_likelihood, prior_likelihood
+
+    def accept(self):
+        activity_index, facility_index, updated_counts, distance_updates, likelihood = self.cache
+
+        self.likelihood = likelihood
+        self.population_counts = updated_counts
+        for index, distance in distance_updates: self.distances[index] = distance
+
+        self.cache = None
+
+    def reject(self):
+        self.cache = None
+
+    def get_likelihood(self):
+        return self.likelihood
+
+    def compute_validation_likelihood(self):
+        pass
+
 class DistanceLikelihood(sampler.Likelihood):
     def __init__(self, config, relevant_activity_types, activity_facilities, activity_modes, activity_types, activity_start_times, facility_coordinates, reference_means, reference_variances, relevant_modes = ["car", "pt", "bike", "walk"]):
         self.use_modes = isinstance(list(reference_means.keys())[0], tuple)
