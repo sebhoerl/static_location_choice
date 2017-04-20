@@ -25,6 +25,11 @@ class DistanceSamplingProposal(sampler.ProposalDistribution):
         for t in relevant_activity_types: self.relevant_activity_mask |= activity_types == constant.ACTIVITY_TYPES_TO_INDEX[t]
         for m in relevant_modes: self.relevant_mode_mask |= activity_modes == constant.MODES_TO_INDEX[m]
 
+        for t in ["work", "education"]:
+            additional_mask = np.roll(activity_types == constant.ACTIVITY_TYPES_TO_INDEX[t], -1)
+            additional_mask[-1] = False
+            self.relevant_activity_mask |= additional_mask
+
         self.relevant_activity_indices = np.where(self.relevant_activity_mask)[0]
         self.relevant_mode_indices = np.where(self.relevant_mode_mask)[0]
         self.relevant_indices = np.where(self.relevant_activity_mask & self.relevant_mode_mask)[0]

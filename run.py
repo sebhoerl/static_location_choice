@@ -5,6 +5,11 @@ import reference
 import pickle
 import sys
 import json
+import shutil, os
+
+shutil.rmtree("output")
+os.mkdir("output")
+os.mkdir("output/dists")
 
 import matplotlib as mpl
 mpl.use('Agg')

@@ -276,8 +276,8 @@ class QuantileLikelihood(sampler.Likelihood):
             if updated_quantile_index < len(self.probabilities): updated_counts[following_category][updated_quantile_index] += 1
             distance_updates.append((change[0] + 1, following_distance_update))
 
-        prior_likelihood = -np.max([-np.max(np.abs(self.population_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c])) for c in self.categories])
-        posterior_likelihood = -np.max([-np.max(np.abs(updated_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c])) for c in self.categories])
+        prior_likelihood = -np.sum([1.0 - np.sum(self.population_counts[c]) / self.total_population_counts[c] + np.sum(np.abs(self.population_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c])) for c in self.categories])
+        posterior_likelihood = -np.sum([1.0 - np.sum(updated_counts[c]) / self.total_population_counts[c] + np.sum(np.abs(updated_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c])) for c in self.categories])
 
         self.cache = ( change[0], change[1], updated_counts, distance_updates, posterior_likelihood )
         return posterior_likelihood, prior_likelihood
