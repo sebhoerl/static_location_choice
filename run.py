@@ -91,13 +91,13 @@ distance_likelihood.initialize()
 quantile_likelihood = likelihoods.QuantileLikelihood(config, relevant_activity_types + additional_activity_types, activity_facilities, activity_modes, activity_types, activity_start_times, facility_coordinates, reference_data, relevant_modes)
 quantile_likelihood.initialize()
 
-#min_time, max_time, bins = config["minimum_time"], config["maximum_time"], config["time_bins"]
-#capacity_likelihood = likelihoods.CapacityLikelihood(config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_end_times, activity_start_times, min_time, max_time, bins)
-#capacity_likelihood.initialize()
+min_time, max_time, bins = config["minimum_time"], config["maximum_time"], config["time_bins"]
+capacity_likelihood = likelihoods.CapacityLikelihood(config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_end_times, activity_start_times, min_time, max_time, bins)
+capacity_likelihood.initialize()
 
 joint_likelihood = likelihoods.JointLikelihood()
 #joint_likelihood.add_likelihood(distance_likelihood, 1.0)
-#joint_likelihood.add_likelihood(capacity_likelihood, 1.0)
+joint_likelihood.add_likelihood(capacity_likelihood, 1.0)
 joint_likelihood.add_likelihood(quantile_likelihood, 1.0)
 
 acceptance_count = 0
@@ -123,7 +123,7 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
         acceptance_count = 0
 
         likelihood.append(joint_likelihood.get_likelihood())
-        #excess.append(capacity_likelihood.get_excess_count())
+        excess.append(capacity_likelihood.get_excess_count())
 
         for c in distance_likelihood.categories:
             mean_distances = distance_likelihood.get_means()
@@ -143,7 +143,8 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
 
                 for t, color in zip(relevant_activity_types + additional_activity_types, colors):
                     ti = constant.ACTIVITY_TYPES_TO_INDEX[t]
-                    c = (mi, ti)
+                    #c = (mi, ti)
+                    c = quantile_likelihood._make_category_index(mi, ti)
 
                     quantiles = quantile_likelihood.quantiles[c]
                     plt.plot(np.log10(quantiles), np.cumsum(quantile_likelihood.reference_counts[c] / quantile_likelihood.total_reference_counts[c]), color = color, linestyle = '--')
@@ -182,7 +183,7 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
             plt.savefig("%s/distances.png" % config["output_path"])
             plt.close()
 
-        if False:
+        if True:
             plt.figure(figsize = (12,8))
             plt.plot(excess, label = "Excess Occupancy")
             plt.grid()

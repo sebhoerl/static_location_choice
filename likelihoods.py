@@ -41,15 +41,17 @@ stime = lambda x: "%02d:%02d:%02d" % (int(x) // 3600, (int(x) % 3600) // 60, int
 
 class CapacityLikelihood(sampler.Likelihood):
     def __init__(self, config, relevant_activity_types, activity_types, activity_facilities, facility_capacities, activity_end_times, activity_start_times, min_time, max_time, bins):
-        self.relevant_activity_types = { constant.ACTIVITY_TYPES_TO_INDEX[a] : i for i, a in enumerate(relevant_activity_types)}
+        self.relevant_activity_types = [ constant.ACTIVITY_TYPES_TO_INDEX[a] for a in relevant_activity_types ]
 
         self.config = config
         self.bins = bins
 
-        self.activity_types = activity_types
+        self.activity_types = np.array([self.relevant_activity_types.index(t) if t in self.relevant_activity_types else -1 for t in activity_types])
         self.activity_facilities = activity_facilities
         self.facility_capacities = facility_capacities
         self.occupancy = np.zeros((len(relevant_activity_types), facility_capacities.shape[1], bins), dtype = np.int)
+
+        self.facility_capacities = self.facility_capacities[self.relevant_activity_types]
 
         end_times = np.copy(activity_end_times)
         end_times[end_times < 0.0] = np.inf
@@ -76,11 +78,11 @@ class CapacityLikelihood(sampler.Likelihood):
 
         if cache is None:
             progress = tqdm(total = len(self.relevant_activity_types), desc = "Building occupancy matrix")
-            for t, ti in self.relevant_activity_types.items():
+            for t in range(len(self.relevant_activity_types)):
                 type_indices = np.where(self.activity_types == t)[0]
 
                 for i in type_indices:
-                    self.occupancy[ti, self.activity_facilities[i], self.activity_time_indices[i]] += 1
+                    self.occupancy[t, self.activity_facilities[i], self.activity_time_indices[i]] += 1
 
                 progress.update()
             progress.close()
@@ -89,9 +91,9 @@ class CapacityLikelihood(sampler.Likelihood):
 
             progress = tqdm(total = len(self.relevant_activity_types) * self.facility_capacities.shape[1], desc = "Counting valid occupancies")
 
-            for t, ti in self.relevant_activity_types.items():
+            for t in range(len(self.relevant_activity_types)):
                 for f in range(self.facility_capacities.shape[1]):
-                    self.excess_count += np.sum(np.maximum(self.occupancy[ti,f,:] - self.facility_capacities[t, f], 0))
+                    self.excess_count += np.sum(np.maximum(self.occupancy[t,f,:] - self.facility_capacities[t, f], 0))
                     progress.update()
 
             progress.close()
@@ -111,11 +113,11 @@ class CapacityLikelihood(sampler.Likelihood):
             return self.likelihood, self.likelihood
 
         old_capacity_limit = self.facility_capacities[self.activity_types[activity_index], self.activity_facilities[activity_index]]
-        old_occupancy_counts_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], self.activity_facilities[activity_index], self.activity_time_indices[activity_index]]
+        old_occupancy_counts_before = self.occupancy[self.activity_types[activity_index], self.activity_facilities[activity_index], self.activity_time_indices[activity_index]]
         old_occupancy_counts_after = old_occupancy_counts_before - 1
 
         new_capacity_limit = self.facility_capacities[self.activity_types[activity_index], facility_index]
-        new_occupancy_counts_before = self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index, self.activity_time_indices[activity_index]]
+        new_occupancy_counts_before = self.occupancy[self.activity_types[activity_index], facility_index, self.activity_time_indices[activity_index]]
         new_occupancy_counts_after = new_occupancy_counts_before + 1
 
         excess_count = float(self.excess_count)
@@ -136,8 +138,8 @@ class CapacityLikelihood(sampler.Likelihood):
         if self.cache is None: raise RuntimeError()
         activity_index, facility_index, excess_count, likelihood = self.cache
 
-        self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], self.activity_facilities[activity_index], self.activity_time_indices[activity_index]] -= 1
-        self.occupancy[self.relevant_activity_types[self.activity_types[activity_index]], facility_index, self.activity_time_indices[activity_index]] += 1
+        self.occupancy[self.activity_types[activity_index], self.activity_facilities[activity_index], self.activity_time_indices[activity_index]] -= 1
+        self.occupancy[self.activity_types[activity_index], facility_index, self.activity_time_indices[activity_index]] += 1
         self.excess_count = excess_count
         self.likelihood = likelihood
 
@@ -186,7 +188,9 @@ class QuantileLikelihood(sampler.Likelihood):
             if activity_types[i] == home and activity_types[i-1] in self.relevant_activity_types and activity_start_times[i] > -1:
                 self.activity_types[i] = activity_types[i-1]
 
-        self.categories = list(itertools.product(self.relevant_modes, self.relevant_activity_types))
+        #self.categories = list(itertools.product(self.relevant_modes, self.relevant_activity_types))
+        self.category_count = len(self.relevant_modes) * len(self.relevant_activity_types)
+        self.categories = [ self._make_category_multiindex(i) for i in range(self.category_count) ]
 
         self.relevant_activity_mask_by_category = {
             (m, t) : ( (activity_modes == m) & (activity_types == t) & (activity_start_times > -1) )
@@ -218,40 +222,56 @@ class QuantileLikelihood(sampler.Likelihood):
         self.cache = None
         self.likelihood = None
 
+    def _make_category_index(self, m, t):
+        if m == -1 or t == -1: return -1
+        if not m in self.relevant_modes: return -1
+        if not t in self.relevant_activity_types: return -1
+        return self.relevant_modes.index(m) + self.relevant_activity_types.index(t) * len(self.relevant_modes)
+
+    def _make_category_multiindex(self, i):
+        return (self.relevant_modes[i % len(self.relevant_modes)], self.relevant_activity_types[i // len(self.relevant_modes)])
+
     def initialize(self):
+        self.activity_categories = np.array([self._make_category_index(m, t) for m, t in zip(self.activity_modes, self.activity_types)])
+
         from_coordinates = self.facility_coordinates[self.activity_facilities[self.relevant_activity_indices - 1]]
         to_coordinates = self.facility_coordinates[self.activity_facilities[self.relevant_activity_indices]]
 
         self.distances[self.relevant_activity_indices] = np.sqrt(np.sum((from_coordinates - to_coordinates)**2, axis = 1)) / 1000.0
-        self.distances_by_category = { c : self.distances[self.relevant_activity_indices_by_category[c]] for c in self.categories }
+        self.distances_by_category = [ self.distances[self.relevant_activity_indices_by_category[c]] for c in self.categories ]
 
-        self.quantiles = { c : np.percentile(self.reference_data[c], self.probabilities * 100) for c in self.categories }
-        self.bounds = { c : np.insert(self.quantiles[c], 0, -1) for c in self.categories}
+        self.quantiles = np.array([ np.percentile(self.reference_data[c], self.probabilities * 100) for c in self.categories ])
+        self.bounds = np.array([ np.insert(self.quantiles[c], 0, -1) for c in range(self.category_count) ])
 
-        self.reference_counts = { c :
-            np.array([np.sum((lower < self.reference_data[c]) & (self.reference_data[c] <= upper)) for lower, upper in zip(self.bounds[c][:-1], self.bounds[c][1:])])
-            for c in self.categories }
+        self.reference_counts = np.array([
+            np.array([
+                np.sum((lower < self.reference_data[c]) & (self.reference_data[c] <= upper))
+                for lower, upper in zip(self.bounds[ci][:-1], self.bounds[ci][1:])
+            ]) for ci, c in enumerate(self.categories) ])
 
-        self.population_counts = { c :
-            np.array([np.sum((lower < self.distances_by_category[c]) & (self.distances_by_category[c] <= upper)) for lower, upper in zip(self.bounds[c][:-1], self.bounds[c][1:])])
-            for c in self.categories }
+        self.population_counts = np.array([
+            np.array([
+                np.sum((lower < self.distances_by_category[c]) & (self.distances_by_category[c] <= upper))
+                for lower, upper in zip(self.bounds[c][:-1], self.bounds[c][1:])
+            ]) for c in range(self.category_count) ])
 
-        self.total_reference_counts = {
-            c: np.sum(self.reference_counts[c])
-            for c in self.categories }
+        self.total_reference_counts = np.array([
+            np.sum(self.reference_counts[c])
+            for c in range(self.category_count) ]).reshape((-1,1))
 
-        self.total_population_counts = {
-            c: len(self.distances_by_category[c])
-            for c in self.categories }
+        self.total_population_counts = np.array([
+            len(self.distances_by_category[c])
+            for c in range(self.category_count) ]).reshape((-1,1))
 
     def evaluate(self, change):
-        updated_counts = { c : np.copy(self.population_counts[c]) for c in self.categories }
+        updated_counts = np.copy(self.population_counts)
         distance_updates = []
 
         change_coord = self.facility_coordinates[change[1]]
 
         if change[0] in self.relevant_activity_indices_set:
-            leading_category = (self.activity_modes[change[0]], self.activity_types[change[0]])
+            #leading_category = (self.activity_modes[change[0]], self.activity_types[change[0]])
+            leading_category = self.activity_categories[change[0]]
 
             leading_distance_current = self.distances[change[0]]
             leading_distance_update = np.sqrt(np.sum((self.facility_coordinates[self.activity_facilities[change[0] - 1]] - change_coord)**2)) / 1000.0
@@ -264,7 +284,8 @@ class QuantileLikelihood(sampler.Likelihood):
             distance_updates.append((change[0], leading_distance_update))
 
         if (change[0] + 1) in self.relevant_activity_indices_set:
-            following_category = (self.activity_modes[change[0] + 1], self.activity_types[change[0] + 1])
+            #following_category = (self.activity_modes[change[0] + 1], self.activity_types[change[0] + 1])
+            following_category = self.activity_categories[change[0] + 1]
 
             following_distance_current = self.distances[change[0] + 1]
             following_distance_update = np.sqrt(np.sum((self.facility_coordinates[self.activity_facilities[change[0] + 1]] - change_coord)**2)) / 1000.0
@@ -276,8 +297,29 @@ class QuantileLikelihood(sampler.Likelihood):
             if updated_quantile_index < len(self.probabilities): updated_counts[following_category][updated_quantile_index] += 1
             distance_updates.append((change[0] + 1, following_distance_update))
 
-        prior_likelihood = -np.sum([1.0 - np.sum(self.population_counts[c]) / self.total_population_counts[c] + np.sum(np.abs(self.population_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c])) for c in self.categories])
-        posterior_likelihood = -np.sum([1.0 - np.sum(updated_counts[c]) / self.total_population_counts[c] + np.sum(np.abs(updated_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c])) for c in self.categories])
+        if self.likelihood is None:
+            prior_likelihood = -np.sum([1.0 - np.sum(self.population_counts[c]) / self.total_population_counts[c] + np.sum(np.abs(self.population_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c])) for c in range(self.category_count)])
+        else:
+            prior_likelihood = self.likelihood
+
+        posterior_likelihood__ = -np.sum(np.abs(updated_counts / self.total_population_counts - self.reference_counts / self.total_reference_counts))
+        posterior_likelihood__ -= np.sum(1.0 - (np.sum(updated_counts, axis = 1).reshape((-1,1)) / self.total_population_counts))
+
+        #print(np.sum(updated_counts, axis = 1).shape, self.total_population_counts.shape)
+
+        #print(.shape)
+        #exit()
+
+        #posterior_likelihood__ -= np.sum(np.sum(updated_counts, axis = 1) / self.total_population_counts)
+        posterior_likelihood = posterior_likelihood__
+
+        #posterior_likelihood = -np.sum([
+        #    1.0
+        #    - np.sum(updated_counts[c]) / self.total_population_counts[c]
+        #    + np.sum(np.abs(updated_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c]))
+        #    for c in range(self.category_count)])
+
+        #print(posterior_likelihood, posterior_likelihood__)
 
         self.cache = ( change[0], change[1], updated_counts, distance_updates, posterior_likelihood )
         return posterior_likelihood, prior_likelihood
