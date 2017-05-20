@@ -47,7 +47,7 @@ class CapacityLikelihood(sampler.Likelihood):
         self.bins = bins
 
         self.activity_types = np.array([self.relevant_activity_types.index(t) if t in self.relevant_activity_types else -1 for t in activity_types])
-        self.activity_facilities = activity_facilities
+        self.activity_facilities = np.copy(activity_facilities)
         self.facility_capacities = facility_capacities
         self.occupancy = np.zeros((len(relevant_activity_types), facility_capacities.shape[1], bins), dtype = np.int)
 
@@ -108,7 +108,7 @@ class CapacityLikelihood(sampler.Likelihood):
     def evaluate(self, change):
         activity_index, facility_index = change[0], change[1]
 
-        if facility_index == self.activity_facilities[activity_index]:
+        if facility_index == self.activity_facilities[activity_index] or self.activity_types[activity_index] == -1:
             self.cache = (activity_index, facility_index, self.excess_count, self.likelihood)
             return self.likelihood, self.likelihood
 
@@ -120,7 +120,7 @@ class CapacityLikelihood(sampler.Likelihood):
         new_occupancy_counts_before = self.occupancy[self.activity_types[activity_index], facility_index, self.activity_time_indices[activity_index]]
         new_occupancy_counts_after = new_occupancy_counts_before + 1
 
-        excess_count = float(self.excess_count)
+        excess_count = np.copy(self.excess_count)
 
         excess_count -= np.sum(np.maximum(old_occupancy_counts_before - old_capacity_limit, 0))
         excess_count -= np.sum(np.maximum(new_occupancy_counts_before - new_capacity_limit, 0))
@@ -136,10 +136,14 @@ class CapacityLikelihood(sampler.Likelihood):
 
     def accept(self):
         if self.cache is None: raise RuntimeError()
+
         activity_index, facility_index, excess_count, likelihood = self.cache
+        if self.activity_types[activity_index] == -1: return
 
         self.occupancy[self.activity_types[activity_index], self.activity_facilities[activity_index], self.activity_time_indices[activity_index]] -= 1
         self.occupancy[self.activity_types[activity_index], facility_index, self.activity_time_indices[activity_index]] += 1
+        self.activity_facilities[activity_index] = facility_index
+
         self.excess_count = excess_count
         self.likelihood = likelihood
 
@@ -155,22 +159,22 @@ class CapacityLikelihood(sampler.Likelihood):
     def get_excess_count(self):
         return self.excess_count
 
-    def compute_validation_likelihood(self):
+    def compute_validation_excess_count(self):
         occupancy = np.zeros((len(self.relevant_activity_types), self.facility_capacities.shape[1], self.bins), dtype = np.int)
 
-        for t, ti in self.relevant_activity_types.items():
+        for t in range(len(self.relevant_activity_types)):
             type_indices = np.where(self.activity_types == t)[0]
 
             for i in type_indices:
-                occupancy[ti, self.activity_facilities[i], self.activity_time_indices[i]] += 1
+                occupancy[t, self.activity_facilities[i], self.activity_time_indices[i]] += 1
 
         excess_count = 0
 
-        for t, ti in self.relevant_activity_types.items():
+        for t in range(len(self.relevant_activity_types)):
             for f in range(self.facility_capacities.shape[1]):
-                excess_count += np.sum(np.maximum(occupancy[ti,f,:] - self.facility_capacities[t, f], 0))
+                excess_count += np.sum(np.maximum(occupancy[t,f,:] - self.facility_capacities[t, f], 0))
 
-        return np.log(self.alpha) - self.alpha * excess_count
+        return excess_count
 
 class QuantileLikelihood(sampler.Likelihood):
     def __init__(self, config, relevant_activity_types, activity_facilities, activity_modes, activity_types, activity_start_times, facility_coordinates, reference_data, relevant_modes = ["car", "pt", "bike", "walk"]):
@@ -298,28 +302,13 @@ class QuantileLikelihood(sampler.Likelihood):
             distance_updates.append((change[0] + 1, following_distance_update))
 
         if self.likelihood is None:
-            prior_likelihood = -np.sum([1.0 - np.sum(self.population_counts[c]) / self.total_population_counts[c] + np.sum(np.abs(self.population_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c])) for c in range(self.category_count)])
+            prior_likelihood = -np.sum(np.abs(self.population_counts / self.total_population_counts - self.reference_counts / self.total_reference_counts))
+            prior_likelihood -= np.sum(1.0 - (np.sum(self.population_counts, axis = 1).reshape((-1,1)) / self.total_population_counts))
         else:
             prior_likelihood = self.likelihood
 
-        posterior_likelihood__ = -np.sum(np.abs(updated_counts / self.total_population_counts - self.reference_counts / self.total_reference_counts))
-        posterior_likelihood__ -= np.sum(1.0 - (np.sum(updated_counts, axis = 1).reshape((-1,1)) / self.total_population_counts))
-
-        #print(np.sum(updated_counts, axis = 1).shape, self.total_population_counts.shape)
-
-        #print(.shape)
-        #exit()
-
-        #posterior_likelihood__ -= np.sum(np.sum(updated_counts, axis = 1) / self.total_population_counts)
-        posterior_likelihood = posterior_likelihood__
-
-        #posterior_likelihood = -np.sum([
-        #    1.0
-        #    - np.sum(updated_counts[c]) / self.total_population_counts[c]
-        #    + np.sum(np.abs(updated_counts[c] / self.total_population_counts[c] - self.reference_counts[c] / self.total_reference_counts[c]))
-        #    for c in range(self.category_count)])
-
-        #print(posterior_likelihood, posterior_likelihood__)
+        posterior_likelihood = -np.sum(np.abs(updated_counts / self.total_population_counts - self.reference_counts / self.total_reference_counts))
+        posterior_likelihood -= np.sum(1.0 - (np.sum(updated_counts, axis = 1).reshape((-1,1)) / self.total_population_counts))
 
         self.cache = ( change[0], change[1], updated_counts, distance_updates, posterior_likelihood )
         return posterior_likelihood, prior_likelihood
