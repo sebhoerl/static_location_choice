@@ -1,8 +1,13 @@
 {
     "cache_path": "cache",
     "use_population_cache" : true,
-    "sampling_factor" : 1e3,
-    "_" : 1e12,
+    "schedule": "decay",
+    "constant_temperature" : 1e-8,
+    "exponential_temperature" : {
+        "initial_temperature": 1e-4,
+        "final_temperature": 1e-8,
+        "duration": 1e7
+    },
     "output_interval" : 1e5,
     "measurement_interval" : 1e3,
     "total_iterations" : 1e8,
@@ -21,7 +26,7 @@
     "maximum_time" : 62400,
     "time_bins" : 288,
     "proposal" : "advanced",
-    "capacity_likelihood_alpha" : 1e-6,
+    "capacity_likelihood_alpha" : 1e-5,
     "distance_based_proposal_candidate_set_size" : 30,
     "override_sigma" : []
 }

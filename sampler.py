@@ -18,11 +18,13 @@ class ProposalDistribution:
         raise NotImplementedError()
 
 class Sampler:
-    def __init__(self, config, likelihood, proposal_distribution, activity_facilities):
-        self.sampling_factor = config["sampling_factor"]
+    def __init__(self, config, likelihood, proposal_distribution, activity_facilities, schedule):
+        #self.sampling_factor = config["sampling_factor"]
         self.likelihood = likelihood
         self.proposal_distribution = proposal_distribution
         self.activity_facilities = activity_facilities
+        self.schedule = schedule
+        self.iteration = 0
 
     def run_sample(self):
         change, forward_probability, backward_probability = self.proposal_distribution.sample()
@@ -31,10 +33,14 @@ class Sampler:
 
         a1 = likelihood_new - likelihood_previous
         a2 = forward_probability - backward_probability
+        #E = np.exp(a1 / self.schedule.get_temperature(self.iteration))
 
-        a = a1 + a2
+        #a = a1 + a2
+        self.iteration += 1
 
-        if a >= 0 or np.log(np.random.random()) <= self.sampling_factor * a:
+        a = 1.0 if a1 > 0.0 else np.exp(a1 / self.schedule.get_temperature(self.iteration))
+
+        if a > np.random.random():
             self.likelihood.accept()
             self.activity_facilities[change[0]] = change[1]
             return True

@@ -6,6 +6,7 @@ import pickle
 import sys
 import json
 import shutil, os
+import schedules
 
 shutil.rmtree("output")
 os.mkdir("output")
@@ -102,12 +103,18 @@ joint_likelihood.add_likelihood(quantile_likelihood, 1.0)
 
 acceptance_count = 0
 acceptance = []
+temperatures = []
 likelihood = []
 excess = []
 
 distances = { c : [] for c in distance_likelihood.categories }
 
-sampler = sampler.Sampler(config, joint_likelihood, proposal_distribution, activity_facilities)
+if config["schedule"] == "constant":
+    schedule = schedules.ConstantSchedule(config["constant_temperature"])
+elif config["schedule"] == "decay":
+    schedule = schedules.ExponentialSchedule(config)
+
+sampler = sampler.Sampler(config, joint_likelihood, proposal_distribution, activity_facilities, schedule)
 for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locations"):
     accepted = sampler.run_sample()
     if accepted: acceptance_count += 1
@@ -120,6 +127,7 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
 
     if i % config["measurement_interval"] == 0:
         acceptance.append(acceptance_count / config["measurement_interval"])
+        temperatures.append(schedule.get_temperature(i))
         acceptance_count = 0
 
         likelihood.append(joint_likelihood.get_likelihood())
@@ -147,14 +155,17 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
                     c = quantile_likelihood._make_category_index(mi, ti)
 
                     quantiles = quantile_likelihood.quantiles[c]
-                    plt.plot(np.log10(quantiles), np.cumsum(quantile_likelihood.reference_counts[c] / quantile_likelihood.total_reference_counts[c]), color = color, linestyle = '--')
-                    plt.plot(np.log10(quantiles), np.cumsum(quantile_likelihood.population_counts[c] / quantile_likelihood.total_population_counts[c]), color = color, label = t)
+                    #plt.semilogx(quantiles, np.cumsum(quantile_likelihood.reference_counts[c] / quantile_likelihood.total_reference_counts[c]), color = color, linestyle = '--')
+                    #plt.semilogx(quantiles, np.cumsum(quantile_likelihood.population_counts[c] / quantile_likelihood.total_population_counts[c]), color = color, label = t)
+                    plt.semilogx(quantiles, quantile_likelihood.reference_counts[c] / quantile_likelihood.total_reference_counts[c], color = color, linestyle = '--')
+                    plt.semilogx(quantiles, quantile_likelihood.population_counts[c] / quantile_likelihood.total_population_counts[c], color = color, label = t)
+
 
                 plt.title("%s, %d Iterations" % (m, i))
                 plt.grid()
                 plt.ylim([0, 1.2])
                 plt.legend(loc = "lower right")
-                plt.xlabel("log(Distance)")
+                plt.xlabel("Distance [km]")
                 plt.ylabel("P(Distance <= Q)")
                 plt.savefig("%s/dists/%s_%d.png" % (config["output_path"], m, i))
                 plt.close()
@@ -192,12 +203,16 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
             plt.close()
 
         plt.figure(figsize = (12,8))
-        plt.subplot(2,1,1)
+        plt.subplot(3,1,1)
         plt.plot(likelihood, label = "Likelihood")
         plt.legend()
         plt.grid()
-        plt.subplot(2,1,2)
+        plt.subplot(3,1,2)
         plt.plot(acceptance, label = "Acceptance")
+        plt.legend()
+        plt.grid()
+        plt.subplot(3,1,3)
+        plt.semilogy(temperatures, label = "Temperature")
         plt.legend()
         plt.grid()
         plt.savefig("%s/stats.png" % config["output_path"])
