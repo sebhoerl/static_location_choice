@@ -103,7 +103,8 @@ class CapacityLikelihood(sampler.Likelihood):
             print("Loaded occupancy matrix from cache")
             self.occupancy, self.excess_count = cache
 
-        self.likelihood = np.log(self.alpha) - self.alpha * self.excess_count
+        #self.likelihood = np.log(self.alpha) - self.alpha * self.excess_count
+        self.likelihood = -self.alpha * self.excess_count
 
     def evaluate(self, change):
         activity_index, facility_index = change[0], change[1]
@@ -128,7 +129,8 @@ class CapacityLikelihood(sampler.Likelihood):
         excess_count += np.sum(np.maximum(old_occupancy_counts_after - old_capacity_limit, 0))
         excess_count += np.sum(np.maximum(new_occupancy_counts_after - new_capacity_limit, 0))
 
-        likelihood = np.log(self.alpha) - self.alpha * excess_count
+        #likelihood = np.log(self.alpha) - self.alpha * excess_count
+        likelihood = -self.alpha * excess_count
 
         self.cache = (activity_index, facility_index, excess_count, likelihood)
 

@@ -1,7 +1,7 @@
 {
     "cache_path": "cache",
     "use_population_cache" : true,
-    "sampling_factor" : 1e8,
+    "sampling_factor" : 1e3,
     "_" : 1e12,
     "output_interval" : 1e5,
     "measurement_interval" : 1e3,
@@ -21,7 +21,7 @@
     "maximum_time" : 62400,
     "time_bins" : 288,
     "proposal" : "advanced",
-    "capacity_likelihood_alpha" : 1e-3,
+    "capacity_likelihood_alpha" : 1e-6,
     "distance_based_proposal_candidate_set_size" : 30,
     "override_sigma" : []
 }
