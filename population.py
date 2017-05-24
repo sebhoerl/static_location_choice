@@ -30,11 +30,12 @@ class PopulationReader(xml.sax.ContentHandler):
             self.ids.append(self.person_id)
             self.person_index += 1
 
-        if name == "plan" and attributes["selected"] == "yes" and not ("freight_" in self.person_id or "cb_" in self.person_id):
+        if name == "plan" and not ("freight_" in self.person_id or "cb_" in self.person_id):
+        #if name == "plan" and attributes["selected"] == "yes" and not ("freight_" in self.person_id or "cb_" in self.person_id):
             self.plan_selected = True
             self.persons.append(len(self.activities))
 
-        if name =="act" and self.plan_selected:
+        if name =="activity" and self.plan_selected:
             self.activity_index += 1
             self.activities.append((
                 self.leg_mode, attributes['type'], attributes['facility'],
