@@ -8,6 +8,7 @@
         "final_temperature": 1e-8,
         "duration": 1e7
     },
+    "quantiles": 20,
     "output_interval" : 1e5,
     "measurement_interval" : 1e3,
     "total_iterations" : 1e8,

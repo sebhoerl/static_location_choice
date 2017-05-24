@@ -214,7 +214,8 @@ class QuantileLikelihood(sampler.Likelihood):
 
         self.relevant_activity_indices_set = set(list(self.relevant_activity_indices))
 
-        self.probabilities = np.array([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]) / 100
+        #self.probabilities = np.array([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]) / 100
+        self.probabilities = np.arange(1, config["quantiles"] + 1) / config["quantiles"]
         self.reference_data = { (m,a) : np.array(reference_data[0][(constant.MODES[m], constant.ACTIVITY_TYPES[a])]) for m, a in self.categories }
 
         self.distances = np.zeros((len(activity_facilities)), dtype = np.float)

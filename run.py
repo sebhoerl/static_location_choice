@@ -155,10 +155,10 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
                     c = quantile_likelihood._make_category_index(mi, ti)
 
                     quantiles = quantile_likelihood.quantiles[c]
-                    #plt.semilogx(quantiles, np.cumsum(quantile_likelihood.reference_counts[c] / quantile_likelihood.total_reference_counts[c]), color = color, linestyle = '--')
-                    #plt.semilogx(quantiles, np.cumsum(quantile_likelihood.population_counts[c] / quantile_likelihood.total_population_counts[c]), color = color, label = t)
-                    plt.semilogx(quantiles, quantile_likelihood.reference_counts[c] / quantile_likelihood.total_reference_counts[c], color = color, linestyle = '--')
-                    plt.semilogx(quantiles, quantile_likelihood.population_counts[c] / quantile_likelihood.total_population_counts[c], color = color, label = t)
+                    plt.semilogx(quantiles, np.cumsum(quantile_likelihood.reference_counts[c] / quantile_likelihood.total_reference_counts[c]), color = color, linestyle = '--')
+                    plt.semilogx(quantiles, np.cumsum(quantile_likelihood.population_counts[c] / quantile_likelihood.total_population_counts[c]), color = color, label = t)
+                    #plt.semilogx(quantiles, quantile_likelihood.reference_counts[c] / quantile_likelihood.total_reference_counts[c], color = color, linestyle = '--')
+                    #plt.semilogx(quantiles, quantile_likelihood.population_counts[c] / quantile_likelihood.total_population_counts[c], color = color, label = t)
 
 
                 plt.title("%s, %d Iterations" % (m, i))
