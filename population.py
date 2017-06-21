@@ -7,6 +7,10 @@ import re
 TC = np.array((3600.0, 60.0, 1.0), dtype = np.float)
 convert_time = lambda s: np.dot(TC, np.array(s.split(':'), dtype=np.float))
 
+def normalize_activity_type(t):
+    if t == "shopping": return "shop"
+    return t
+
 class PopulationReader(xml.sax.ContentHandler):
     def __init__(self, config):
         self.progress = None
@@ -35,10 +39,10 @@ class PopulationReader(xml.sax.ContentHandler):
             self.plan_selected = True
             self.persons.append(len(self.activities))
 
-        if name =="activity" and self.plan_selected:
+        if (name == "activity" or name == "act") and self.plan_selected:
             self.activity_index += 1
             self.activities.append((
-                self.leg_mode, attributes['type'], attributes['facility'],
+                self.leg_mode, normalize_activity_type(attributes['type']), attributes['facility'] if 'facility' in attributes else None,
                 convert_time(attributes['end_time']) if 'end_time' in attributes else -1.0,
                 convert_time(attributes['start_time']) if 'start_time' in attributes else -1.0
                 ))
@@ -78,7 +82,7 @@ class PopulationReader(xml.sax.ContentHandler):
         for activity in self.activities:
             activity_modes.append(constant.MODES_TO_INDEX[activity[0]] if activity[0] is not None else -1)
             activity_types.append(constant.ACTIVITY_TYPES_TO_INDEX[activity[1]])
-            activity_facilities.append(facility_id_to_index[activity[2]])
+            activity_facilities.append(facility_id_to_index[activity[2]] if activity[2] is not None else 0)
             activity_end_times.append(activity[3])
             activity_start_times.append(activity[4])
 

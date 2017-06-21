@@ -1,6 +1,7 @@
 {
     "cache_path": "cache",
-    "use_population_cache" : true,
+    "use_population_cache" : false,
+    "use_facilities_cache" : true,
     "schedule": "decay",
     "constant_temperature" : 1e-8,
     "exponential_temperature" : {
@@ -18,8 +19,8 @@
     "_relevant_activity_types" : [],
     "relevant_activity_types" : ["shop", "leisure", "escort_kids", "escort_other", "remote_work"],
     "additional_activity_types" : ["work", "education"],
-    "source_facilities_path" : "data/facilities.xml.gz",
-    "source_population_path" : "data/population.xml.gz",
+    "source_facilities_path" : "data/lc_prepare/facilities_1.xml.gz",
+    "source_population_path" : "data/lc_prepare/population_1.xml.gz",
     "output_path" : "output",
     "capacity_scaling_factor" : 0.01,
     "distribution_mode" : "mixed",

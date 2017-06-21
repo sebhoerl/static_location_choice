@@ -33,7 +33,7 @@ class FacilityReader(xml.sax.ContentHandler):
             self.facilities[-1][FacilityReader.CAPACITIES][self.facility_type] = attributes['value']
 
     def read(self, path):
-        cache = utils.load_cache("facilities", self.config)
+        cache = utils.load_cache("facilities", self.config) if self.config["use_facilities_cache"] else None
 
         if cache is None:
             self.progress = tqdm(desc = "Loading Facilities ...")
