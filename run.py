@@ -8,10 +8,6 @@ import json
 import shutil, os
 import schedules
 
-shutil.rmtree("output")
-os.mkdir("output")
-os.mkdir("output/dists")
-
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
@@ -21,13 +17,18 @@ from sklearn.neighbors import KDTree
 import numpy as np
 
 #from tqdm import tqdm
-tqdm = lambda x: x
+def tqdm(x, desc = None):
+    return x
 
 if len(sys.argv) < 2:
     print("No config")
     exit()
 else:
     config = json.load(open(sys.argv[1]))
+
+shutil.rmtree(config["output_path"])
+os.mkdir(config["output_path"])
+os.mkdir(config["output_path"] + "/dists")
 
 facility_ids, facility_coordinates, facility_capacities = FacilityReader(config).read(config["source_facilities_path"])
 facility_id_to_index = { facility_id : index for index, facility_id in enumerate(facility_ids) }
