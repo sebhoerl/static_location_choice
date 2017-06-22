@@ -78,7 +78,7 @@ for t in tqdm(relevant_activity_types, desc = "Initialization"):
 
 if config["proposal"] == "advanced":
     census_distances = reference.get_crowfly_distances()
-    proposal_distribution = proposals.DistanceSamplingProposal(config, relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances)
+    proposal_distribution = proposals.DistanceSamplingProposal(config, relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances, activity_start_times, activity_end_times)
 else:
     proposal_distribution = proposals.RandomProposalDistribution(relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes)
 

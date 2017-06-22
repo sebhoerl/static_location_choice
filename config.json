@@ -1,6 +1,6 @@
 {
     "cache_path": "cache",
-    "use_population_cache" : false,
+    "use_population_cache" : true,
     "use_facilities_cache" : true,
     "schedule": "decay",
     "constant_temperature" : 1e-8,
@@ -30,5 +30,6 @@
     "proposal" : "advanced",
     "capacity_likelihood_alpha" : 1e-5,
     "distance_based_proposal_candidate_set_size" : 30,
-    "override_sigma" : []
+    "override_sigma" : [],
+    "uses_times" : true
 }

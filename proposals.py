@@ -1,9 +1,10 @@
 import numpy as np
 import sampler, constant
 from sklearn.neighbors import KDTree
+import pickle
 
 class DistanceSamplingProposal(sampler.ProposalDistribution):
-    def __init__(self, config, relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances):
+    def __init__(self, config, relevant_activity_types, activity_types, activity_modes, facility_capacities, relevant_modes, facility_coordinates, activity_facilities, census_distances, activity_start_times, activity_end_times):
         census_distances, _, census_mode_distances = census_distances
 
         self.census_distances = { (constant.MODES_TO_INDEX[c[0]], constant.ACTIVITY_TYPES_TO_INDEX[c[1]]) : np.array(d, dtype=np.float) * 1e3 for c, d in census_distances.items() }
@@ -38,6 +39,15 @@ class DistanceSamplingProposal(sampler.ProposalDistribution):
         self.facility_type_indices = [np.where(m)[0] for m in self.facility_type_masks]
 
         self.trees = [KDTree(self.facility_coordinates[self.facility_type_indices[t]]) for t in range(len(constant.ACTIVITY_TYPES))]
+
+        if config["uses_times"]:
+            with open("data/distributions.p", "rb") as f: self.time_distance_distributions = pickle.load(f)
+            self.leg_durations = np.concatenate(([0], np.array(np.floor((activity_start_times[1:] - activity_end_times[:-1]) / 300) * 5, dtype = np.int)))
+
+            self.ttdd_keys = list(self.time_distance_distributions.keys())
+            self.ttdd_counts = { k : len(self.time_distance_distributions[k]) for k in self.ttdd_keys }
+
+        self.config = config
 
     def _get_coords(self, center1, center2, distance1, distance2):
         distance1 = max(distance1, 1.0)
@@ -83,14 +93,30 @@ class DistanceSamplingProposal(sampler.ProposalDistribution):
         preceeding_category = (current_mode, current_type)
         following_category = (following_mode, following_type)
 
-        if not preceeding_category in self.census_distances: preceeding_category = current_mode
-        if not following_category in self.census_distances: following_category = following_mode
+        if not self.config["uses_times"]:
+            if not preceeding_category in self.census_distances: preceeding_category = current_mode
+            if not following_category in self.census_distances: following_category = following_mode
 
-        preceeding_choice_index = np.random.randint(self.census_distance_counts[preceeding_category])
-        following_choice_index = np.random.randint(self.census_distance_counts[following_category])
+            preceeding_choice_index = np.random.randint(self.census_distance_counts[preceeding_category])
+            following_choice_index = np.random.randint(self.census_distance_counts[following_category])
 
-        preceeding_distance = self.census_distances[preceeding_category][preceeding_choice_index]
-        following_distance = self.census_distances[following_category][following_choice_index]
+            preceeding_distance = self.census_distances[preceeding_category][preceeding_choice_index]
+            following_distance = self.census_distances[following_category][following_choice_index]
+        else:
+            preceeding_duration = self.leg_durations[activity_index]
+            following_duration = self.leg_durations[activity_index + 1]
+
+            preceeding_sample_index = (preceeding_category[0], preceeding_duration)
+            following_sample_index = (following_category[0], following_duration)
+
+            while not preceeding_sample_index in self.ttdd_keys: preceeding_sample_index = (preceeding_category[0], preceeding_sample_index[1] - 5)
+            while not following_sample_index in self.ttdd_keys: following_sample_index = (following_category[0], following_sample_index[1] - 5)
+
+            preceeding_selector = np.random.randint(self.ttdd_counts[preceeding_sample_index])
+            following_selector = np.random.randint(self.ttdd_counts[following_sample_index])
+
+            preceeding_distance = self.time_distance_distributions[preceeding_sample_index][preceeding_selector]
+            following_distance = self.time_distance_distributions[following_sample_index][following_selector]
 
         #preceeding_distance = np.random.choice(self.census_distances[preceeding_category]) if preceeding_category in self.census_distances else np.random.choice(self.census_mode_distances[constant.MODES[current_mode]])
         #following_distance = np.random.choice(self.census_distances[following_category]) if following_category in self.census_distances else np.random.choice(self.census_mode_distances[constant.MODES[following_mode]])
