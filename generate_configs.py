@@ -5,7 +5,7 @@ with open("config.json") as f:
 
 names = []
 
-for scenario in [1, 10, 100]:
+for scenario in [1]:#[1, 10, 100]:
     for times in ["times", "notimes"]:
         for constraint in ["aggressive", "moderate"]:
             template["capacity_likelihood_alpha"] = (1e-4 if constraint == "aggressive" else 1e-5) / scenario
@@ -26,7 +26,7 @@ for scenario in [1, 10, 100]:
 
 runner = ["# parallel 10"]
 for name in names:
-    runner = ["mkdir -p output_%s" % name] + runner
+    runner = ["mkdir -p output_%s/dists" % name] + runner
     runner.append("python3 run.py configs/config_%s.json" % name)
 
 with open("runner.sh", "w+") as f:
