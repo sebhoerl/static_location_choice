@@ -2,12 +2,12 @@
     "cache_path": "cache",
     "use_population_cache" : true,
     "use_facilities_cache" : true,
-    "schedule": "decay",
-    "constant_temperature" : 1e-8,
+    "schedule": "exponential",
+    "constant_temperature" : 1e-20,
     "exponential_temperature" : {
-        "initial_temperature": 1e-4,
-        "final_temperature": 1e-8,
-        "duration": 1e7
+        "initial_temperature": 1e-2,
+        "final_temperature": 1e-18,
+        "duration": 1e8
     },
     "quantiles": 20,
     "output_interval" : 1e5,
@@ -31,5 +31,5 @@
     "capacity_likelihood_alpha" : 1e-5,
     "distance_based_proposal_candidate_set_size" : 30,
     "override_sigma" : [],
-    "uses_times" : true
+    "uses_times" : false
 }

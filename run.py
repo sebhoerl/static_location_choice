@@ -113,6 +113,8 @@ if config["schedule"] == "constant":
     schedule = schedules.ConstantSchedule(config["constant_temperature"])
 elif config["schedule"] == "decay":
     schedule = schedules.ExponentialSchedule(config)
+elif config["schedule"] == "linear":
+    schedule = schedules.LinearSchedule(config)
 
 sampler = sampler.Sampler(config, joint_likelihood, proposal_distribution, activity_facilities, schedule)
 for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locations"):
