@@ -1,10 +1,16 @@
 import numpy as np
+import re
 
 ACTIVITY_TYPES = ["work", "education", "shop", "leisure", "remote_work", "escort_kids", "escort_other", "home", "remote_home"]
 MODES = ["car", "pt", "bike", "walk"]
 
 ACTIVITY_TYPES_TO_INDEX = { v : k for k, v in enumerate(ACTIVITY_TYPES) }
 MODES_TO_INDEX = { v : k for k, v in enumerate(MODES) }
+
+def normalize_activity_type(t):
+    t = t.replace("shopping", "shop")
+    t = re.sub(r'_[0-9]+$', '', t)
+    return t
 
 PURPOSE_MAP = {
     '-99' : None,

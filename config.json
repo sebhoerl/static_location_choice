@@ -1,8 +1,8 @@
 {
     "cache_path": "cache",
-    "use_population_cache" : true,
-    "use_facilities_cache" : true,
-    "schedule": "exponential",
+    "use_population_cache" : false,
+    "use_facilities_cache" : false,
+    "schedule": "decay",
     "constant_temperature" : 1e-20,
     "exponential_temperature" : {
         "initial_temperature": 1e-2,

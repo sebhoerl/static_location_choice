@@ -27,7 +27,7 @@ class FacilityReader(xml.sax.ContentHandler):
 
         if name == "activity":
             self.facilities[-1][FacilityReader.ACTIVITY_TYPES].add(attributes['type'])
-            self.facility_type = attributes['type']
+            self.facility_type = constant.normalize_activity_type(attributes['type'])
 
         if name == "capacity":
             self.facilities[-1][FacilityReader.CAPACITIES][self.facility_type] = attributes['value']
