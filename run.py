@@ -19,7 +19,9 @@ from matplotlib.pyplot import cm
 from sklearn.neighbors import KDTree
 
 import numpy as np
-from tqdm import tqdm
+
+#from tqdm import tqdm
+tqdm = lambda x: x
 
 if len(sys.argv) < 2:
     print("No config")
