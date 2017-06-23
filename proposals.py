@@ -43,6 +43,7 @@ class DistanceSamplingProposal(sampler.ProposalDistribution):
         if config["uses_times"]:
             with open("data/distributions.p", "rb") as f: self.time_distance_distributions = pickle.load(f)
             self.leg_durations = np.concatenate(([0], np.array(np.floor((activity_start_times[1:] - activity_end_times[:-1]) / 300) * 5, dtype = np.int)))
+            self.leg_durations = np.maximum(self.leg_durations, 0)
 
             self.ttdd_keys = list(self.time_distance_distributions.keys())
             self.ttdd_counts = { k : len(self.time_distance_distributions[k]) for k in self.ttdd_keys }
@@ -109,8 +110,13 @@ class DistanceSamplingProposal(sampler.ProposalDistribution):
             preceeding_sample_index = (preceeding_category[0], preceeding_duration)
             following_sample_index = (following_category[0], following_duration)
 
-            while not preceeding_sample_index in self.ttdd_keys: preceeding_sample_index = (preceeding_category[0], preceeding_sample_index[1] - 5)
-            while not following_sample_index in self.ttdd_keys: following_sample_index = (following_category[0], following_sample_index[1] - 5)
+            while not preceeding_sample_index in self.ttdd_keys:
+                if preceeding_sample_index[1] - 5 < 0: raise RuntimeError()
+                preceeding_sample_index = (preceeding_category[0], preceeding_sample_index[1] - 5)
+
+            while not following_sample_index in self.ttdd_keys:
+                if following_sample_index[1] - 5 < 0: raise RuntimeError()
+                following_sample_index = (following_category[0], following_sample_index[1] - 5)
 
             preceeding_selector = np.random.randint(self.ttdd_counts[preceeding_sample_index])
             following_selector = np.random.randint(self.ttdd_counts[following_sample_index])
