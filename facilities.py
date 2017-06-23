@@ -1,5 +1,4 @@
 import constant, utils
-from tqdm import tqdm
 import numpy as np
 import xml.sax
 
@@ -8,14 +7,11 @@ class FacilityReader(xml.sax.ContentHandler):
 
     def __init__(self, config):
         self.facilities = []
-        self.progress = None
         self.config = config
 
         self.activity_type = None
 
     def startElement(self, name, attributes):
-        self.progress.update()
-
         if name == "facility":
             self.facilities.append([
                 attributes['id'],
@@ -36,11 +32,12 @@ class FacilityReader(xml.sax.ContentHandler):
         cache = utils.load_cache("facilities", self.config) if self.config["use_facilities_cache"] else None
 
         if cache is None:
-            self.progress = tqdm(desc = "Loading Facilities ...")
+            print("Loading Facilities ...")
             utils.make_xml_parser(self, utils.open_gzip(path))
 
             cache = self.process()
             utils.save_cache("facilities", cache, self.config)
+            print("Done")
         else:
             print("Loaded faciltiies from cache.")
 

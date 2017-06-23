@@ -1,6 +1,5 @@
 import numpy as np
 import sampler, constant, utils
-from tqdm import tqdm
 import scipy.special
 import itertools
 
@@ -64,8 +63,10 @@ class CapacityLikelihood(sampler.Likelihood):
 
         self.activity_time_indices = []
 
-        for i in tqdm(range(len(activity_end_times)), desc = "Constructing activity time indices"):
+        print("Constructing activity time indices")
+        for i in range(len(activity_end_times)):
             self.activity_time_indices.append(np.arange(start_bins[i], end_bins[i]))
+        print("Done")
 
         self.excess_count = None
         self.likelihood = None
@@ -77,26 +78,24 @@ class CapacityLikelihood(sampler.Likelihood):
         cache = None #utils.load_cache("capacity_likelihood", self.config)
 
         if cache is None:
-            progress = tqdm(total = len(self.relevant_activity_types), desc = "Building occupancy matrix")
+            print("Building occupancy matrix")
             for t in range(len(self.relevant_activity_types)):
                 type_indices = np.where(self.activity_types == t)[0]
 
                 for i in type_indices:
                     self.occupancy[t, self.activity_facilities[i], self.activity_time_indices[i]] += 1
 
-                progress.update()
-            progress.close()
+            print("Done")
 
             self.excess_count = 0
 
-            progress = tqdm(total = len(self.relevant_activity_types) * self.facility_capacities.shape[1], desc = "Counting valid occupancies")
+            print("Counting valid occupancies")
 
             for t in range(len(self.relevant_activity_types)):
                 for f in range(self.facility_capacities.shape[1]):
                     self.excess_count += np.sum(np.maximum(self.occupancy[t,f,:] - self.facility_capacities[t, f], 0))
-                    progress.update()
 
-            progress.close()
+            print("Done")
 
             #utils.save_cache("capacity_likelihood", (self.occupancy, self.excess_count), self.config)
         else:

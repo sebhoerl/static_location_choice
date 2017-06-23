@@ -7,6 +7,7 @@ import sys
 import json
 import shutil, os
 import schedules
+import time
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -15,10 +16,6 @@ from matplotlib.pyplot import cm
 from sklearn.neighbors import KDTree
 
 import numpy as np
-
-#from tqdm import tqdm
-def tqdm(x, desc = None):
-    return x
 
 if len(sys.argv) < 2:
     print("No config")
@@ -51,7 +48,8 @@ if config["distribution_mode"] in ("close", "mixed"):
     facility_type_indices = [np.where(m)[0] for m in facility_type_masks]
     facility_type_trees = [KDTree(facility_coordinates[facility_type_indices[t]]) for t in range(len(constant.ACTIVITY_TYPES))]
 
-for t in tqdm(relevant_activity_types, desc = "Initialization"):
+print("Initialization")
+for t in relevant_activity_types:
     type_indices = np.where(facility_capacities[constant.ACTIVITY_TYPES_TO_INDEX[t],:] > 0)[0]
     type_mask = activity_types == constant.ACTIVITY_TYPES_TO_INDEX[t]
 
@@ -77,7 +75,7 @@ for t in tqdm(relevant_activity_types, desc = "Initialization"):
                 activity_facilities[selector_mask] = np.random.choice(type_indices, np.sum(selector_mask))
     else:
         raise RuntimeError("No distribution mode selected")
-
+print("Done")
 
 if config["proposal"] == "advanced":
     census_distances = reference.get_crowfly_distances()
@@ -119,8 +117,9 @@ elif config["schedule"] == "decay":
 elif config["schedule"] == "linear":
     schedule = schedules.LinearSchedule(config)
 
+print("Running...")
 sampler = sampler.Sampler(config, joint_likelihood, proposal_distribution, activity_facilities, schedule)
-for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locations"):
+for i in range(int(config["total_iterations"]) + 1):
     accepted = sampler.run_sample()
     if accepted: acceptance_count += 1
 
@@ -143,6 +142,7 @@ for i in tqdm(range(int(config["total_iterations"]) + 1), desc = "Sampling locat
             distances[c].append( mean_distances[c] ) # - reference_means[t] )
 
     if i % config["output_interval"] == 0:# and i > 0:
+        print("Iteration %d" % i)
         with open("%s/plotdata.p" % config["output_path"], "wb+") as f:
             pickle.dump((distances, excess, likelihood, acceptance), f)
 

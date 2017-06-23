@@ -1,5 +1,4 @@
 import constant, utils
-from tqdm import tqdm
 import numpy as np
 import xml.sax
 import re
@@ -9,7 +8,6 @@ convert_time = lambda s: np.dot(TC, np.array(s.split(':'), dtype=np.float))
 
 class PopulationReader(xml.sax.ContentHandler):
     def __init__(self, config):
-        self.progress = None
         self.config = config
 
         self.activities = []
@@ -23,8 +21,6 @@ class PopulationReader(xml.sax.ContentHandler):
         self.activity_index = -1
 
     def startElement(self, name, attributes):
-        self.progress.update()
-
         if name == "person":
             self.person_id = attributes['id']
             self.ids.append(self.person_id)
@@ -56,11 +52,12 @@ class PopulationReader(xml.sax.ContentHandler):
             cache = utils.load_cache("population", self.config)
 
         if cache is None:
-            self.progress = tqdm(desc = "Loading Population ...")
+            print("Loading population ...")
             utils.make_xml_parser(self, utils.open_gzip(path))
 
             cache = self.process(facility_id_to_index)
             utils.save_cache("population", cache, self.config)
+            print("Done")
         else:
             print("Loaded population from cache.")
 
@@ -95,7 +92,7 @@ class PopulationWriter:
         self.config = config
 
     def write(self, input_path, output_path, activity_facilities, facility_ids):
-        progress = tqdm(total = len(activity_facilities), desc = "Writing population")
+        print("Writing population ...")
         consume_activities = False
         activity_index = 0
 
@@ -112,9 +109,8 @@ class PopulationWriter:
                             consume_activities = True
 
                     if b"<act" in line and consume_activities:
-                        line = re.sub(rb'facility="(.*?)"', b'facility="%s"' % bytes(facility_ids[activity_facilities[activity_index]], "ascii"), line)
+                        line = re.sub(rb'facility="(.*?)"', bytes('facility="%s"' % facility_ids[activity_facilities[activity_index]], "ascii"), line)
                         activity_index += 1
-                        progress.update()
 
                     fout.write(line)
-        progress.close()
+        print("Done")
