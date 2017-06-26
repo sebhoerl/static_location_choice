@@ -5,10 +5,9 @@ with open("config.json") as f:
 
 names = []
 
-for scenario in [1]:#[1, 10, 100]:
-    for times in ["times", "notimes"]:
-        for constraint in ["aggressive", "moderate"]:
-            template["capacity_likelihood_alpha"] = (1e-4 if constraint == "aggressive" else 1e-5) / scenario
+for scenario in [1, 10, 100]:
+    for times in ["notimes"]: #["times", "notimes"]:
+            template["capacity_likelihood_alpha"] = 1e-4 / scenario
             template["uses_times"] = "times" == times
 
             template["source_facilities_path"] = "data/lc_prepare/facilities_%d.xml.gz" % scenario
@@ -18,10 +17,10 @@ for scenario in [1]:#[1, 10, 100]:
             template["use_population_cache"] = False
             template["use_facilities_cache"] = False
 
-            template["output_path"] = "output_%d_%s_%s" % (scenario, times, constraint)
-            names.append("%d_%s_%s" % (scenario, times, constraint))
+            template["output_path"] = "output_%d_%s" % (scenario, times)
+            names.append("%d_%s" % (scenario, times))
 
-            with open("configs/config_%d_%s_%s.json" % (scenario, times, constraint), "w+") as f:
+            with open("configs/config_%d_%s.json" % (scenario, times), "w+") as f:
                 json.dump(template, f)
 
 runner = ["# parallel 10"]

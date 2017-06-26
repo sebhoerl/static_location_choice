@@ -6,13 +6,13 @@
     "constant_temperature" : 1e-20,
     "exponential_temperature" : {
         "initial_temperature": 1e-2,
-        "final_temperature": 1e-18,
+        "final_temperature": 1e-8,
         "duration": 1e8
     },
     "quantiles": 20,
     "output_interval" : 1e5,
     "measurement_interval" : 1e3,
-    "total_iterations" : 1e8,
+    "total_iterations" : 1e7,
     "validation_interval" : null,
     "output_population_interval" : 1e6,
     "relevant_modes" : ["car", "pt", "bike", "walk"],
