@@ -26,7 +26,7 @@ class LinearSchedule:
     def __init__(self, config):
         self.T0 = config["linear_temperature"]["initial_temperature"]
         self.T1 = config["linear_temperature"]["final_temperature"]
-        self.N1 = config["exponential_temperature"]["duration"]
+        self.N1 = config["linear_temperature"]["duration"]
 
         self.alpha = (self.T1 - self.T0) / self.N1
 
